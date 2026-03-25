@@ -464,11 +464,11 @@ export default function HomePage() {
       }
 
       // If stream ended without a done/error message
-      setGenError('Stream ended unexpectedly — Claude may have timed out. Try again or upgrade to Vercel Pro for longer timeouts.');
+      setGenError('Stream ended unexpectedly — generation timed out or was interrupted. Please try again.');
 
     } catch (err) {
       if (err.name === 'AbortError') {
-        setGenError('Request timed out. Generation takes 30–90 seconds — please try again. On Vercel free tier, upgrade to Pro for longer timeouts.');
+        setGenError('Request timed out. Generation takes 60–120 seconds — please try again.');
       } else {
         setGenError(`Error: ${err.message || 'Check your connection and try again.'}`);
       }

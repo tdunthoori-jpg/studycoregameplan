@@ -3,7 +3,7 @@ import { GENERATION_SYSTEM_PROMPT, buildGenerationPrompt } from '../../../lib/pr
 import { buildGamePlanDocx } from '../../../lib/docx-builder';
 import { buildMeetingScriptDocx } from '../../../lib/script-builder';
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function POST(request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
