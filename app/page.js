@@ -1,7 +1,37 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getRecommendation, weeksUntilDate, SAT_TEST_DATES, PERFORMANCE_BANDS } from '../lib/recommend';
+import { getRecommendation, weeksUntilDate, SAT_TEST_DATES, PERFORMANCE_BANDS, STATE_COLLEGES, parseStateFromLocation } from '../lib/recommend';
+
+// ─── Band normalization ────────────────────────────────────────────────────────
+// Maps whatever Claude Vision returns → exact dropdown option
+function normalizeBand(raw) {
+  if (!raw || raw === 'null') return '';
+  const s = String(raw).trim();
+  if (!s) return '';
+  if (s === 'N/A' || /^n\/?a$/i.test(s)) return 'N/A';
+  if (/below\s*400/i.test(s)) return 'Below 400';
+
+  // Normalize various dash characters → en-dash
+  const normalized = s.replace(/[\u002D\u2014\u2013]/g, '–').replace(/\s*–\s*/g, '–');
+  if (PERFORMANCE_BANDS.includes(normalized)) return normalized;
+
+  // Extract first 3-digit number and map to closest band
+  const match = s.match(/\d{3}/);
+  if (match) {
+    const n = parseInt(match[0]);
+    if (n < 400) return 'Below 400';
+    if (n <= 450) return '400–450';
+    if (n <= 500) return '450–500';
+    if (n <= 540) return '490–540';
+    if (n <= 550) return '500–550';
+    if (n <= 600) return '550–600';
+    if (n <= 670) return '610–670';
+    if (n <= 760) return '680–760';
+    return '680–800';
+  }
+  return '';
+}
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const STYLES = {
@@ -240,6 +270,8 @@ export default function HomePage() {
   const [targetScore, setTargetScore] = useState('1400');
   const [targetDate, setTargetDate]   = useState('');
   const [colleges, setColleges]       = useState('');
+  const [studentState, setStudentState] = useState('');
+  const [collegeSuggestions, setCollegeSuggestions] = useState([]);
 
   // Domains
   const [domains, setDomains] = useState({ ...defaultDomains });
@@ -306,15 +338,29 @@ export default function HomePage() {
     if (data.testType)    { setTestType(data.testType);       highlighted.push('testType'); }
     if (data.rwScore)     { setRwScore(String(data.rwScore)); highlighted.push('rwScore'); }
     if (data.mathScore)   { setMathScore(String(data.mathScore)); highlighted.push('mathScore'); }
+
+    // Normalize and fill all domain bands
     if (data.domains) {
       setDomains(prev => {
         const next = { ...prev };
         Object.keys(defaultDomains).forEach(k => {
-          if (data.domains[k]) { next[k] = data.domains[k]; highlighted.push('domain_' + k); }
+          const normalized = normalizeBand(data.domains[k]);
+          if (normalized) { next[k] = normalized; highlighted.push('domain_' + k); }
         });
         return next;
       });
     }
+
+    // Handle location → state detection → college suggestions
+    if (data.location) {
+      setStudentState(data.location);
+      highlighted.push('studentState');
+      const stateCode = parseStateFromLocation(data.location);
+      if (stateCode && STATE_COLLEGES[stateCode]) {
+        setCollegeSuggestions(STATE_COLLEGES[stateCode]);
+      }
+    }
+
     if (data.additionalData) setAdditionalData(data.additionalData);
     setHighlightedFields(highlighted);
     setParseStatus('success');
@@ -345,6 +391,7 @@ export default function HomePage() {
         targetScore:  parseInt(targetScore) || 1400,
         targetTestDate: targetDate || '',
         targetColleges: colleges,
+        studentLocation: studentState,
         domains,
         totalHours:       parseInt(totalHours) || 20,
         sessionsPerWeek:  parseInt(sessionsPerWeek) || 2,
@@ -487,10 +534,59 @@ export default function HomePage() {
                 options={[{ label: '— Select date —', value: '' }, ...SAT_TEST_DATES]}
               />
             </Field>
-            <Field label="Target Colleges" hint="Comma-separated">
-              <Input value={colleges} onChange={setColleges} placeholder="e.g. UNC Chapel Hill, UVA, Wake Forest" />
+            <Field label="Student Location" hint="City/State — auto-filled from score report">
+              <Input
+                value={studentState}
+                onChange={v => {
+                  setStudentState(v);
+                  const code = parseStateFromLocation(v);
+                  setCollegeSuggestions(code && STATE_COLLEGES[code] ? STATE_COLLEGES[code] : []);
+                }}
+                placeholder="e.g. Charlotte, NC"
+                highlight={hl('studentState')}
+              />
             </Field>
           </div>
+
+          <Field label="Target Colleges" hint="Comma-separated — click suggestions below to add">
+            <Input value={colleges} onChange={setColleges} placeholder="e.g. UNC Chapel Hill, UVA, Wake Forest" />
+          </Field>
+
+          {/* College suggestions based on detected state */}
+          {collegeSuggestions.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: '#666', marginBottom: 6, fontStyle: 'italic' }}>
+                💡 Top colleges in {studentState} — click to add:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {collegeSuggestions.map(c => {
+                  const alreadyAdded = colleges.toLowerCase().includes(c.toLowerCase());
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => {
+                        if (alreadyAdded) return;
+                        setColleges(prev => prev ? `${prev}, ${c}` : c);
+                      }}
+                      style={{
+                        background: alreadyAdded ? '#e8f5e9' : '#eaf3fb',
+                        border: `1px solid ${alreadyAdded ? '#27AE60' : STYLES.blue}`,
+                        borderRadius: 20,
+                        padding: '4px 12px',
+                        fontSize: 12,
+                        color: alreadyAdded ? STYLES.green : STYLES.blue,
+                        cursor: alreadyAdded ? 'default' : 'pointer',
+                        fontWeight: alreadyAdded ? 700 : 400,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {alreadyAdded ? '✓ ' : '+'} {c}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </SectionCard>
 
         {/* Section 2: Domain Performance */}
