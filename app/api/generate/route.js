@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { GENERATION_SYSTEM_PROMPT, buildGenerationPrompt } from '../../../lib/prompts';
+import { GAME_PLAN_SYSTEM_PROMPT, MEETING_SCRIPT_SYSTEM_PROMPT, buildGenerationPrompt } from '../../../lib/prompts';
 import { buildGamePlanDocx } from '../../../lib/docx-builder';
 import { buildMeetingScriptDocx } from '../../../lib/script-builder';
 
@@ -38,34 +38,38 @@ export async function POST(request) {
         line(controller, { status: 'generating', message: 'Calling Claude Sonnet — this takes 30–90 seconds…' });
 
         const client = new Anthropic({ apiKey });
+        const userPrompt = buildGenerationPrompt(studentData);
 
-        // ── Step 1: Call Claude (streaming to keep connection alive) ──────────
-        let rawText = '';
-        let stopReason = null;
+        // ── Step 1: Call Claude twice in parallel (game plan + meeting script) ─
+        // Running in parallel halves the wait time and keeps each response
+        // well within token limits regardless of plan length.
+        line(controller, { status: 'generating', message: 'Building game plan and meeting script in parallel…' });
+
+        // Heartbeat every 12 seconds so Vercel doesn't drop the connection
+        let elapsed = 0;
+        const heartbeat = setInterval(() => {
+          elapsed += 12;
+          line(controller, { status: 'generating', message: `Claude is working… (${elapsed}s)` });
+        }, 12000);
+
+        let gamePlanMsg, scriptMsg;
         try {
-          const claudeStream = client.messages.stream({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 16000,
-            system: GENERATION_SYSTEM_PROMPT,
-            messages: [{ role: 'user', content: buildGenerationPrompt(studentData) }],
-          });
-
-          // Send a heartbeat every 15 seconds while Claude streams
-          let lastHeartbeat = Date.now();
-          for await (const chunk of claudeStream) {
-            if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
-              rawText += chunk.delta.text;
-            }
-            if (chunk.type === 'message_delta' && chunk.delta?.stop_reason) {
-              stopReason = chunk.delta.stop_reason;
-            }
-            const now = Date.now();
-            if (now - lastHeartbeat > 15000) {
-              lastHeartbeat = now;
-              line(controller, { status: 'generating', message: `Claude is writing… (~${Math.round(rawText.length / 4)} tokens so far)` });
-            }
-          }
+          [gamePlanMsg, scriptMsg] = await Promise.all([
+            client.messages.create({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 16000,
+              system: GAME_PLAN_SYSTEM_PROMPT,
+              messages: [{ role: 'user', content: userPrompt }],
+            }),
+            client.messages.create({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 4000,
+              system: MEETING_SCRIPT_SYSTEM_PROMPT,
+              messages: [{ role: 'user', content: userPrompt }],
+            }),
+          ]);
         } catch (err) {
+          clearInterval(heartbeat);
           const msg = err?.message ?? 'Unknown Anthropic API error';
           const hint = err?.status === 401
             ? ' — Check that your ANTHROPIC_API_KEY is valid.'
@@ -76,39 +80,47 @@ export async function POST(request) {
           controller.close();
           return;
         }
+        clearInterval(heartbeat);
 
-        // Detect truncation before attempting to parse
-        if (stopReason === 'max_tokens') {
-          line(controller, { status: 'error', error: 'Claude response was cut off (too long). Try reducing the number of weeks or sessions, then generate again.' });
+        // Check for truncation in either response
+        if (gamePlanMsg.stop_reason === 'max_tokens') {
+          line(controller, { status: 'error', error: 'Game plan response was cut off. Try reducing the number of weeks, then generate again.' });
+          controller.close();
+          return;
+        }
+        if (scriptMsg.stop_reason === 'max_tokens') {
+          line(controller, { status: 'error', error: 'Meeting script response was cut off. Try generating again.' });
           controller.close();
           return;
         }
 
-        // ── Step 2: Parse JSON ─────────────────────────────────────────────────
-        // Strip markdown code fences if Claude wrapped the response
-        let cleanText = rawText.trim();
-        if (cleanText.startsWith('```')) {
-          cleanText = cleanText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+        // ── Step 2: Parse JSON from each response ──────────────────────────────
+        function parseJson(rawText, label) {
+          let clean = rawText.trim();
+          if (clean.startsWith('```')) {
+            clean = clean.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+          }
+          const match = clean.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error(`${label}: no JSON object found in response`);
+          return JSON.parse(match[0]);
         }
 
-        const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          line(controller, { status: 'error', error: 'Claude did not return valid JSON. Try generating again.', raw: rawText.slice(0, 500) });
-          controller.close();
-          return;
-        }
-
-        let parsed;
+        let gamePlan, meetingScript;
         try {
-          parsed = JSON.parse(jsonMatch[0]);
-        } catch (parseErr) {
-          // Include the tail of the raw text to help diagnose truncation
-          line(controller, { status: 'error', error: 'JSON parse error — the response may have been cut off. Try generating again.', raw: rawText.slice(-300) });
+          gamePlan = parseJson(gamePlanMsg.content[0].text, 'Game plan');
+        } catch (err) {
+          line(controller, { status: 'error', error: `Game plan parse error: ${err.message}. Try generating again.` });
+          controller.close();
+          return;
+        }
+        try {
+          meetingScript = parseJson(scriptMsg.content[0].text, 'Meeting script');
+        } catch (err) {
+          line(controller, { status: 'error', error: `Meeting script parse error: ${err.message}. Try generating again.` });
           controller.close();
           return;
         }
 
-        const { gamePlan, meetingScript } = parsed;
         if (!gamePlan || !meetingScript) {
           line(controller, { status: 'error', error: 'Claude response missing gamePlan or meetingScript sections.' });
           controller.close();
