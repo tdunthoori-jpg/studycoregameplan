@@ -449,8 +449,22 @@ export default function HomePage() {
         }
       }
 
+      // Flush any remaining buffer (handles large done message split across final chunk)
+      if (buffer.trim()) {
+        let msg;
+        try { msg = JSON.parse(buffer); } catch { /* incomplete data */ }
+        if (msg?.status === 'done') {
+          setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, name: msg.studentName });
+          setGenStatus('');
+          return;
+        } else if (msg?.status === 'error') {
+          setGenError(msg.error || 'Generation failed. Please try again.');
+          return;
+        }
+      }
+
       // If stream ended without a done/error message
-      if (!downloads) setGenError('Stream ended unexpectedly. Please try again.');
+      setGenError('Stream ended unexpectedly — Claude may have timed out. Try again or upgrade to Vercel Pro for longer timeouts.');
 
     } catch (err) {
       if (err.name === 'AbortError') {

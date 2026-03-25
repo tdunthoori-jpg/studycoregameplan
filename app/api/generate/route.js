@@ -35,19 +35,34 @@ export async function POST(request) {
         }
 
         // Send immediate heartbeat so the connection isn't dropped
-        line(controller, { status: 'generating', message: 'Calling Claude Sonnet — this takes 30–60 seconds…' });
+        line(controller, { status: 'generating', message: 'Calling Claude Sonnet — this takes 30–90 seconds…' });
 
         const client = new Anthropic({ apiKey });
 
-        // ── Step 1: Call Claude ────────────────────────────────────────────────
-        let claudeResponse;
+        // ── Step 1: Call Claude (streaming to keep connection alive) ──────────
+        let rawText = '';
         try {
-          claudeResponse = await client.messages.create({
+          const claudeStream = await client.messages.stream({
             model: 'claude-sonnet-4-6',
             max_tokens: 8192,
             system: GENERATION_SYSTEM_PROMPT,
             messages: [{ role: 'user', content: buildGenerationPrompt(studentData) }],
           });
+
+          // Send a heartbeat every 15 seconds while Claude streams
+          let tokenCount = 0;
+          let lastHeartbeat = Date.now();
+          for await (const chunk of claudeStream) {
+            if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
+              rawText += chunk.delta.text;
+              tokenCount++;
+            }
+            const now = Date.now();
+            if (now - lastHeartbeat > 15000) {
+              lastHeartbeat = now;
+              line(controller, { status: 'generating', message: `Claude is writing… (~${Math.round(rawText.length / 4)} tokens so far)` });
+            }
+          }
         } catch (err) {
           const msg = err?.message ?? 'Unknown Anthropic API error';
           const hint = err?.status === 401
@@ -59,8 +74,6 @@ export async function POST(request) {
           controller.close();
           return;
         }
-
-        const rawText = claudeResponse.content[0]?.text ?? '';
 
         // ── Step 2: Parse JSON ─────────────────────────────────────────────────
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
