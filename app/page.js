@@ -295,8 +295,9 @@ export default function HomePage() {
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
+  const [genStatus, setGenStatus]       = useState(''); // progress message
   const [genError, setGenError]         = useState('');
-  const [downloads, setDownloads]       = useState(null); // { gamePlan, script, name }
+  const [downloads, setDownloads]       = useState(null);
 
   // Recommendation
   const [rec, setRec] = useState(null);
@@ -379,50 +380,87 @@ export default function HomePage() {
   async function handleGenerate() {
     setGenError('');
     setDownloads(null);
+    setGenStatus('Starting…');
     setIsGenerating(true);
-    try {
-      const payload = {
-        studentName: studentName || 'Student',
-        grade,
-        testType,
-        rwScore:      parseInt(rwScore) || null,
-        mathScore:    parseInt(mathScore) || null,
-        totalScore:   total || null,
-        targetScore:  parseInt(targetScore) || 1400,
-        targetTestDate: targetDate || '',
-        targetColleges: colleges,
-        studentLocation: studentState,
-        domains,
-        totalHours:       parseInt(totalHours) || 20,
-        sessionsPerWeek:  parseInt(sessionsPerWeek) || 2,
-        sessionLength,
-        weeks:            parseInt(weeks) || 10,
-        homeworkHrs,
-        notes,
-        additionalData,
-      };
 
-      const res  = await fetch('/api/generate', {
+    const payload = {
+      studentName: studentName || 'Student',
+      grade,
+      testType,
+      rwScore:      parseInt(rwScore) || null,
+      mathScore:    parseInt(mathScore) || null,
+      totalScore:   total || null,
+      targetScore:  parseInt(targetScore) || 1400,
+      targetTestDate: targetDate || '',
+      targetColleges: colleges,
+      studentLocation: studentState,
+      domains,
+      totalHours:       parseInt(totalHours) || 20,
+      sessionsPerWeek:  parseInt(sessionsPerWeek) || 2,
+      sessionLength,
+      weeks:            parseInt(weeks) || 10,
+      homeworkHrs,
+      notes,
+      additionalData,
+    };
+
+    try {
+      const res = await fetch('/api/generate', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
       });
-      const json = await res.json();
 
-      if (!res.ok || !json.success) {
-        setGenError(json.error || 'Generation failed. Please try again.');
+      if (!res.ok && !res.body) {
+        setGenError(`Server error (${res.status}). Please try again.`);
         return;
       }
 
-      setDownloads({
-        gamePlan: json.gamePlanBase64,
-        script:   json.scriptBase64,
-        name:     json.studentName,
-      });
+      // Read NDJSON stream line by line
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer    = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep any incomplete trailing line
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let msg;
+          try { msg = JSON.parse(line); } catch { continue; }
+
+          if (msg.status === 'generating') {
+            setGenStatus(msg.message || 'Calling Claude Sonnet…');
+          } else if (msg.status === 'building') {
+            setGenStatus(msg.message || 'Building .docx files…');
+          } else if (msg.status === 'done') {
+            setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, name: msg.studentName });
+            setGenStatus('');
+            return;
+          } else if (msg.status === 'error') {
+            setGenError(msg.error || 'Generation failed. Please try again.');
+            return;
+          }
+        }
+      }
+
+      // If stream ended without a done/error message
+      if (!downloads) setGenError('Stream ended unexpectedly. Please try again.');
+
     } catch (err) {
-      setGenError('Network error — please check your connection and try again.');
+      if (err.name === 'AbortError') {
+        setGenError('Request timed out. Generation takes 30–90 seconds — please try again. On Vercel free tier, upgrade to Pro for longer timeouts.');
+      } else {
+        setGenError(`Error: ${err.message || 'Check your connection and try again.'}`);
+      }
     } finally {
       setIsGenerating(false);
+      setGenStatus('');
     }
   }
 
@@ -714,7 +752,7 @@ export default function HomePage() {
           {isGenerating ? (
             <>
               <Spinner />
-              Generating Game Plan + Meeting Script…
+              <span>{genStatus || 'Starting…'}</span>
             </>
           ) : (
             '⚡ Generate Game Plan + Meeting Script'

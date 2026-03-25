@@ -7,93 +7,125 @@ export const maxDuration = 120;
 
 export async function POST(request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return Response.json({ error: 'ANTHROPIC_API_KEY is not set' }, { status: 500 });
+
+  const encoder = new TextEncoder();
+
+  // Helper: send a newline-delimited JSON line
+  function line(controller, obj) {
+    controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
   }
 
-  let studentData;
-  try {
-    studentData = await request.json();
-  } catch {
-    return Response.json({ error: 'Invalid request body' }, { status: 400 });
-  }
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // ── Validate ────────────────────────────────────────────────────────────
+        if (!apiKey) {
+          line(controller, { status: 'error', error: 'ANTHROPIC_API_KEY is not set on the server. Add it in Vercel → Settings → Environment Variables.' });
+          controller.close();
+          return;
+        }
 
-  if (!studentData.studentName && !studentData.totalScore) {
-    return Response.json({ error: 'Missing required student data' }, { status: 400 });
-  }
+        let studentData;
+        try {
+          studentData = await request.json();
+        } catch {
+          line(controller, { status: 'error', error: 'Invalid request body.' });
+          controller.close();
+          return;
+        }
 
-  const client = new Anthropic({ apiKey });
+        // Send immediate heartbeat so the connection isn't dropped
+        line(controller, { status: 'generating', message: 'Calling Claude Sonnet — this takes 30–60 seconds…' });
 
-  // ── Step 1: Call Claude Sonnet ───────────────────────────────────────────────
-  let claudeResponse;
-  try {
-    claudeResponse = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
-      system: GENERATION_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: buildGenerationPrompt(studentData),
-        },
-      ],
-    });
-  } catch (err) {
-    console.error('Claude API error:', err);
-    return Response.json(
-      { error: `Anthropic API error: ${err.message ?? 'Unknown error'}` },
-      { status: err.status ?? 502 }
-    );
-  }
+        const client = new Anthropic({ apiKey });
 
-  const rawText = claudeResponse.content[0]?.text ?? '';
+        // ── Step 1: Call Claude ────────────────────────────────────────────────
+        let claudeResponse;
+        try {
+          claudeResponse = await client.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 8192,
+            system: GENERATION_SYSTEM_PROMPT,
+            messages: [{ role: 'user', content: buildGenerationPrompt(studentData) }],
+          });
+        } catch (err) {
+          const msg = err?.message ?? 'Unknown Anthropic API error';
+          const hint = err?.status === 401
+            ? ' — Check that your ANTHROPIC_API_KEY is valid.'
+            : err?.status === 429
+            ? ' — Rate limit hit; wait a moment and try again.'
+            : '';
+          line(controller, { status: 'error', error: `Claude API error: ${msg}${hint}` });
+          controller.close();
+          return;
+        }
 
-  // ── Step 2: Parse JSON ───────────────────────────────────────────────────────
-  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return Response.json(
-      { error: 'Claude did not return valid JSON', raw: rawText.slice(0, 500) },
-      { status: 422 }
-    );
-  }
+        const rawText = claudeResponse.content[0]?.text ?? '';
 
-  let parsed;
-  try {
-    parsed = JSON.parse(jsonMatch[0]);
-  } catch (e) {
-    return Response.json(
-      { error: 'JSON parse error', raw: rawText.slice(0, 500) },
-      { status: 422 }
-    );
-  }
+        // ── Step 2: Parse JSON ─────────────────────────────────────────────────
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          line(controller, { status: 'error', error: 'Claude did not return valid JSON. Try generating again.', raw: rawText.slice(0, 300) });
+          controller.close();
+          return;
+        }
 
-  const { gamePlan, meetingScript } = parsed;
-  if (!gamePlan || !meetingScript) {
-    return Response.json(
-      { error: 'Missing gamePlan or meetingScript in response', raw: rawText.slice(0, 500) },
-      { status: 422 }
-    );
-  }
+        let parsed;
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          line(controller, { status: 'error', error: 'JSON parse error in Claude response. Try generating again.' });
+          controller.close();
+          return;
+        }
 
-  const studentName = studentData.studentName || 'Student';
+        const { gamePlan, meetingScript } = parsed;
+        if (!gamePlan || !meetingScript) {
+          line(controller, { status: 'error', error: 'Claude response missing gamePlan or meetingScript sections.' });
+          controller.close();
+          return;
+        }
 
-  // ── Step 3: Build .docx files ────────────────────────────────────────────────
-  let gamePlanBuffer, scriptBuffer;
-  try {
-    [gamePlanBuffer, scriptBuffer] = await Promise.all([
-      buildGamePlanDocx(gamePlan, studentName),
-      buildMeetingScriptDocx(meetingScript, studentName),
-    ]);
-  } catch (err) {
-    console.error('docx build error:', err);
-    return Response.json({ error: `Document build error: ${err.message}` }, { status: 500 });
-  }
+        // ── Step 3: Build .docx ────────────────────────────────────────────────
+        line(controller, { status: 'building', message: 'Building .docx files…' });
 
-  // ── Step 4: Return as JSON with base64-encoded files ─────────────────────────
-  return Response.json({
-    success: true,
-    gamePlanBase64: Buffer.from(gamePlanBuffer).toString('base64'),
-    scriptBase64:   Buffer.from(scriptBuffer).toString('base64'),
-    studentName,
+        const studentName = studentData.studentName || 'Student';
+        let gamePlanBuffer, scriptBuffer;
+        try {
+          [gamePlanBuffer, scriptBuffer] = await Promise.all([
+            buildGamePlanDocx(gamePlan, studentName),
+            buildMeetingScriptDocx(meetingScript, studentName),
+          ]);
+        } catch (err) {
+          line(controller, { status: 'error', error: `Document build error: ${err.message}` });
+          controller.close();
+          return;
+        }
+
+        // ── Step 4: Send result ────────────────────────────────────────────────
+        line(controller, {
+          status: 'done',
+          gamePlanBase64: Buffer.from(gamePlanBuffer).toString('base64'),
+          scriptBase64:   Buffer.from(scriptBuffer).toString('base64'),
+          studentName,
+        });
+
+      } catch (err) {
+        // Catch-all for any unhandled errors
+        try {
+          line(controller, { status: 'error', error: `Unexpected error: ${err?.message ?? String(err)}` });
+        } catch {}
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson',
+      'Cache-Control': 'no-cache',
+      'X-Accel-Buffering': 'no', // Disable nginx buffering for streaming
+    },
   });
 }
