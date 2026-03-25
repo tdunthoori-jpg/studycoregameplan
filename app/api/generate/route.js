@@ -41,21 +41,23 @@ export async function POST(request) {
 
         // ── Step 1: Call Claude (streaming to keep connection alive) ──────────
         let rawText = '';
+        let stopReason = null;
         try {
-          const claudeStream = await client.messages.stream({
+          const claudeStream = client.messages.stream({
             model: 'claude-sonnet-4-6',
-            max_tokens: 8192,
+            max_tokens: 16000,
             system: GENERATION_SYSTEM_PROMPT,
             messages: [{ role: 'user', content: buildGenerationPrompt(studentData) }],
           });
 
           // Send a heartbeat every 15 seconds while Claude streams
-          let tokenCount = 0;
           let lastHeartbeat = Date.now();
           for await (const chunk of claudeStream) {
             if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
               rawText += chunk.delta.text;
-              tokenCount++;
+            }
+            if (chunk.type === 'message_delta' && chunk.delta?.stop_reason) {
+              stopReason = chunk.delta.stop_reason;
             }
             const now = Date.now();
             if (now - lastHeartbeat > 15000) {
@@ -71,6 +73,13 @@ export async function POST(request) {
             ? ' — Rate limit hit; wait a moment and try again.'
             : '';
           line(controller, { status: 'error', error: `Claude API error: ${msg}${hint}` });
+          controller.close();
+          return;
+        }
+
+        // Detect truncation before attempting to parse
+        if (stopReason === 'max_tokens') {
+          line(controller, { status: 'error', error: 'Claude response was cut off (too long). Try reducing the number of weeks or sessions, then generate again.' });
           controller.close();
           return;
         }
@@ -94,7 +103,7 @@ export async function POST(request) {
           parsed = JSON.parse(jsonMatch[0]);
         } catch (parseErr) {
           // Include the tail of the raw text to help diagnose truncation
-          line(controller, { status: 'error', error: 'JSON parse error in Claude response. Try generating again.', raw: rawText.slice(-300) });
+          line(controller, { status: 'error', error: 'JSON parse error — the response may have been cut off. Try generating again.', raw: rawText.slice(-300) });
           controller.close();
           return;
         }
