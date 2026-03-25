@@ -153,43 +153,148 @@ const MOCK_GAME_PLAN = {
   bottomLine: "Alex has the foundation to reach 1400. The gap is strategy and targeted practice — not raw intelligence. With 20 hours of focused instruction and consistent homework, this is achievable.",
 };
 
-const MOCK_MEETING_SCRIPT = {
-  opening: {
-    duration: "2–3 min",
-    content: "Start by acknowledging how they're feeling about the score. 'How did you feel when you saw the 1050?' Then pivot: 'The good news is we've done this before with students starting right where Alex is.'",
-  },
-  scoreWalkthrough: {
-    duration: "5–7 min",
-    content: "Walk through the score report section by section. 'Alex scored 540 on R/W — that puts her in the 45th percentile. The two areas dragging the score down are Craft & Structure and Standard English Conventions.' Show the domain breakdown on the report.",
-  },
-  opportunity: {
-    duration: "3–4 min",
-    content: "Frame the opportunity clearly: 'The reason I'm excited about Alex's situation is that C&S and SEC are the most teachable domains on the test. These aren't about intelligence — they're about learning patterns, and Alex clearly has the intelligence.'",
-  },
-  programStructure: {
-    duration: "5–7 min",
-    content: "Walk through the game plan document. '20 sessions over 10 weeks — 2 per week, 1 hour each. We alternate R/W and Math focus. Homework is 3–4 hours per week of targeted drills using StudyCore materials.'",
-  },
-  targetTimeline: {
-    duration: "3–4 min",
-    content: "Point to the score progression table. 'Here's the realistic roadmap. After the first 3 weeks focused on R/W, we expect a 20–30 point jump. By week 6 we add Math and expect another 30–40 point jump. By June we're targeting 1400.'",
-  },
-  collegeContext: {
-    duration: "2–3 min",
-    content: "Reference the target schools. 'UNC Chapel Hill's middle 50% is 1310–1490 — Alex is right on the edge right now. A 1400 puts her squarely in range. Wake Forest is 1360–1530 — a 1400 opens the door.'",
-  },
-  close: {
-    duration: "3–4 min",
-    content: "Summarize and make the ask. 'Here's what I'd recommend: we start next week, get the diagnostic done in session 1, and build from there. The program is $X total — we can do a payment plan if that's helpful. Does Tuesday or Thursday work better for your schedule?'",
-  },
-  strategicQuestions: [
-    "What are Alex's top 3 target schools right now, and has she visited any of them?",
-    "Has Alex worked with a tutor before — and if so, what did and didn't work?",
-    "How is Alex feeling about the college application timeline overall?",
-    "Is there a minimum score you'd need to see before feeling confident about applying to UNC?",
-    "What would it mean for your family if Alex got into her first-choice school?",
-  ],
-};
+// Meeting script is now raw markdown text (not a JSON object)
+const MOCK_MEETING_SCRIPT_MARKDOWN = `## INTRO & RAPPORT BUILDING (3–5 minutes)
+
+**"Hey! Can you hear me okay? Great — so nice to meet you both. Alex, how are you doing? How's 11th grade going?"**
+
+[Light conversation. Let Alex talk. Note interests and activities for later.]
+
+* "What subjects feel strongest right now?"
+* "Have you done any SAT prep before this?"
+
+**"So Alex took the SAT and scored 1050. Before I show you the breakdown — how did that feel when the score came back?"**
+
+[Listen. Let them describe the reaction without interrupting.]
+
+**"When I looked at the domain breakdown, I saw something that most families would completely miss — one number in this report that tells a completely different story than 1050."**
+
+**"Here's what we're covering today:"**
+* The score breakdown and what it actually means
+* The 10-week plan to get to 1400
+* The UNC Chapel Hill and Wake Forest picture
+* Pricing and how to get started
+
+This program needs to start this week to complete before the June 2026 SAT — we have exactly 10 weeks. **"Sound good?"** [Wait for yes.]
+
+---
+
+## SCORE ANALYSIS (7–9 minutes)
+
+**"Share screen."** [Share the game plan document.]
+
+**"Okay — this is Alex's SAT Prep Game Plan. 1050 to 1400. Let me show you what I see…"**
+
+**"This number right here — Expression of Ideas at 550–600 — that does not belong on a 1050 test."** A student scoring in the 550–600 range on EoI is performing like a 1250+ student in that domain. The composite score is being dragged down by two fixable areas.
+
+**Reading & Writing domains:**
+* **Craft & Structure at 450–500** — this is THE target. The single highest-leverage fix in the plan. Three question types, each with a learnable framework.
+* **Information & Ideas at 500–550** — has a foundation. Needs a push.
+* **Expression of Ideas at 550–600** — zero instruction needed. Protect this through practice tests.
+* **Standard English Conventions at 450–500** — entirely rule-based. Finite, learnable rules. This is a quick win.
+
+**Math domains:**
+* **Algebra at 550–600** — solid. Maintain through practice.
+* **Advanced Math at 450–500** — the Math floor. Function notation and quadratics — structured approach unlocks this fast.
+* **Problem-Solving & Data Analysis at 500–550** — moderate gap. Foundation is there.
+* **Geometry & Trigonometry at 400–450** — largely memorizable content. Learn the formula set, apply it.
+
+**"So here's the full picture. 1050 on the surface. But underneath: Expression of Ideas at 550–600 proves the ability is there. Craft & Structure and Advanced Math are where every point is hiding. This is a test-prep problem, not an ability problem."**
+
+[Pause.] **"Does that make sense?"** [Wait for response.]
+
+---
+
+## COLLEGE CONTEXT (2–3 minutes)
+
+**"UNC Chapel Hill's middle 50% SAT range is 1310–1490. At 1050, Alex is below the 25th percentile. At 1400, she lands in the upper half of admitted students."**
+
+**"Wake Forest is 1360–1530 — a 1400 puts her right at the 25th percentile and into genuine consideration."**
+
+**"The SAT stops being a weakness in the application and becomes a strength."**
+
+---
+
+## THE PLAN WALKTHROUGH (7–9 minutes)
+
+**"10 weeks. 20 total hours. 2 sessions per week, 1 hour each. 3 phases."**
+
+**"R/W gets 60% of instruction time because C&S and SEC are the two domains with the highest point return. Math gets 40% — Advanced Math and Geo/Trig are the targets there."**
+
+* **Phase 1 (Weeks 1–3, 6 hrs):** C&S and SEC foundation. Diagnostic in Session 1. Practice Test #1 target: 570+ R/W.
+* **Phase 2 (Weeks 4–6, 6 hrs):** Advanced Math and Geometry. Practice Test #2 target: 550+ Math.
+* **Phase 3 (Weeks 7–10, 8 hrs):** Full integration, timed sections, test-day simulation. Final practice test target: 1370+.
+
+**"The homework isn't busywork. Every assignment is calibrated to whatever gaps showed up in the prior session. Always personalized."**
+
+**"Can you see how the phases sequence — R/W foundation first to stop the bleeding, then Math, then full integration?"** [Wait for yes.]
+
+---
+
+## BUILD CONFIDENCE (4–5 minutes)
+
+**"On a scale of 1 to 10 — if Alex goes through all 20 hours, shows up to every session, and does the homework — how confident are you she hits 1400 by June 2026?"**
+
+[Wait for response.]
+
+If 8–10: **"What makes you confident?"** [Let them articulate. Then: "Exactly — Expression of Ideas at 550–600 is the proof. The ability is already there."]
+
+If 6–7: **"What's making you hesitate — what would get you to a 9?"** [Listen, then address:]
+
+* **"350 points is a big jump"** → "Let me break it down: C&S fix = ~80 points. SEC fix = ~60 points. Advanced Math fix = ~80 points. Geo/Trig fix = ~60 points. We're not asking for one giant leap — we're asking for four targeted fixes. EoI at 550–600 already proves the ability."
+* **"The timeline is tight"** → "10 weeks works for Alex specifically because her Algebra and EoI are already strong — Phase 1 moves faster when you're not starting from zero. The practice test checkpoints keep us honest."
+
+**"So where are you now — 1 to 10?"** [Should land at 8–9.]
+
+---
+
+## HOW SESSIONS WORK (2–3 minutes)
+
+**"Here's exactly what a session looks like:"**
+
+* **First 10 minutes:** homework review — go through every error, categorize the pattern
+* **Next 40–50 minutes:** deep instruction on one specific skill or decision framework — not just practice
+* **Last 10 minutes:** homework preview — Alex knows exactly what to do and why before she leaves
+
+**"Early sessions are instruction-heavy. Later sessions are integration and simulation — full timed sections under test conditions."**
+
+**"Alex has the same tutor all 10 weeks. We don't rotate tutors mid-program."**
+
+**"All our tutors scored 1550+ with specific experience in C&S, SEC, and Advanced Math instruction."**
+
+---
+
+## HANDLE OBJECTIONS & CLOSE
+
+**"I need to think about it"**
+**"Of course — what specifically are you thinking through? Is it the timing, the investment, or something about the approach?"** [Listen.] **"I can send the full game plan document tonight — but I want to be honest: the guarantee requires starting this week to complete the full 10-week program before June 2026. Does today or tomorrow work to get enrollment done?"**
+
+**"350 points is a lot — is that realistic?"**
+**"Let me show you where the points come from. C&S at 450–500 — push that to 610–670, that's roughly 80 points on R/W. SEC at 450–500 — finite rule set, another 60 points. Advanced Math at 450–500 — function notation and quadratics, another 80 Math points. Geo/Trig at 400–450 — memorizable formula set, another 60. That's 280 points from four targeted fixes. EoI at 550–600 on a 1050 test already proves the ability is there."**
+
+**"Can she handle the workload?"**
+**"3–4 hours per week. That's less than one AP class's homework load. The sessions are 1 hour — in and out. The homework is always specific to what showed up in that session, so there's no wasted time."**
+
+**"We tried tutoring before and it didn't work"**
+**"What didn't work — was it the tutor, the structure, or the consistency?"** [Listen.] **"The difference here is the program structure. Every session has a specific skill target. There are practice test checkpoints every 3 weeks so we know if the approach is working. And the guarantee means we don't stop until she hits the score."**
+
+---
+
+**"Here's what we do right now:**
+1. I send the enrollment link to your email.
+2. You complete enrollment today.
+3. Alex gets matched with her tutor this week.
+4. Session 1 is scheduled for this week.
+
+Phase 1 (Weeks 1–3): C&S and SEC foundation
+Phase 2 (Weeks 4–6): Advanced Math and Geometry
+Phase 3 (Weeks 7–10): Full integration + test-day prep
+
+June 2026 SAT. Target: 1400.
+
+10 weeks starting this week. I'm sending the link right now — can you pull up your email?"**
+
+[Send link. Walk through enrollment. Get it done on the call.]`;
 
 // ─── Test 1: JSON Parsing & Code-Fence Stripping ──────────────────────────────
 section('TEST 1: JSON Parsing & Code-Fence Stripping');
@@ -385,11 +490,11 @@ try {
 }
 
 // ─── Test 5: buildMeetingScriptDocx ──────────────────────────────────────────
-section('TEST 5: buildMeetingScriptDocx — Full Happy Path');
+section('TEST 5: buildMeetingScriptDocx — Full Markdown Happy Path');
 
 let scriptBuffer;
 try {
-  scriptBuffer = await buildMeetingScriptDocx(MOCK_MEETING_SCRIPT, 'Alex Johnson');
+  scriptBuffer = await buildMeetingScriptDocx(MOCK_MEETING_SCRIPT_MARKDOWN, 'Alex Johnson');
   assert('buildMeetingScriptDocx returns a Buffer', Buffer.isBuffer(scriptBuffer));
   assert('Meeting script docx is at least 5KB', scriptBuffer.length > 5000);
   assert('Meeting script docx starts with ZIP/DOCX magic bytes', scriptBuffer[0] === 0x50 && scriptBuffer[1] === 0x4B);
@@ -398,71 +503,99 @@ try {
   assert('buildMeetingScriptDocx completed without error', false, err.message);
 }
 
-// ─── Test 6: buildMeetingScriptDocx — Edge Cases ─────────────────────────────
-section('TEST 6: buildMeetingScriptDocx — Edge Cases');
+// ─── Test 6: buildMeetingScriptDocx — Markdown Edge Cases ────────────────────
+section('TEST 6: buildMeetingScriptDocx — Markdown Edge Cases');
 
-// 6a: Missing sections
-const minimalScript = {
-  opening: { duration: "2–3 min", content: "Test opening content" },
-  strategicQuestions: ["Question 1?", "Question 2?"],
-};
+// 6a: Minimal markdown (just headers and text)
+const minimalMarkdown = `## INTRO (3 min)\n\n**"Hello, how are you?"**\n\n[Wait for response.]`;
 try {
-  const buf = await buildMeetingScriptDocx(minimalScript, 'Minimal Test');
-  assert('buildMeetingScriptDocx handles missing sections', Buffer.isBuffer(buf));
+  const buf = await buildMeetingScriptDocx(minimalMarkdown, 'Minimal Test');
+  assert('buildMeetingScriptDocx handles minimal markdown', Buffer.isBuffer(buf) && buf.length > 3000);
 } catch (err) {
-  assert('buildMeetingScriptDocx handles missing sections', false, err.message);
+  assert('buildMeetingScriptDocx handles minimal markdown', false, err.message);
 }
 
-// 6b: Empty strategic questions
-const scriptNoQuestions = { ...MOCK_MEETING_SCRIPT, strategicQuestions: [] };
+// 6b: Empty string
 try {
-  const buf = await buildMeetingScriptDocx(scriptNoQuestions, 'No Questions');
-  assert('buildMeetingScriptDocx handles empty strategic questions', Buffer.isBuffer(buf));
+  const buf = await buildMeetingScriptDocx('', 'Empty Test');
+  assert('buildMeetingScriptDocx handles empty string', Buffer.isBuffer(buf));
 } catch (err) {
-  assert('buildMeetingScriptDocx handles empty strategic questions', false, err.message);
+  assert('buildMeetingScriptDocx handles empty string', false, err.message);
 }
 
-// 6c: Missing strategicQuestions key
-const scriptMissingQuestions = { ...MOCK_MEETING_SCRIPT };
-delete scriptMissingQuestions.strategicQuestions;
+// 6c: Only stage directions and bullets
+const stageOnlyMarkdown = `## Section\n\n[Do this.]\n\n* First bullet\n* Second bullet\n\n[End.]`;
 try {
-  const buf = await buildMeetingScriptDocx(scriptMissingQuestions, 'Missing Questions');
-  assert('buildMeetingScriptDocx handles missing strategicQuestions key', Buffer.isBuffer(buf));
+  const buf = await buildMeetingScriptDocx(stageOnlyMarkdown, 'Stage Only');
+  assert('buildMeetingScriptDocx handles stage-direction-only sections', Buffer.isBuffer(buf));
 } catch (err) {
-  assert('buildMeetingScriptDocx handles missing strategicQuestions key', false, err.message);
+  assert('buildMeetingScriptDocx handles stage-direction-only sections', false, err.message);
+}
+
+// 6d: Numbered list
+const numberedMarkdown = `## Close\n\n**"Here's what we do:"**\n\n1. Send the link.\n2. Complete enrollment.\n3. Start this week.`;
+try {
+  const buf = await buildMeetingScriptDocx(numberedMarkdown, 'Numbered Test');
+  assert('buildMeetingScriptDocx handles numbered lists', Buffer.isBuffer(buf));
+} catch (err) {
+  assert('buildMeetingScriptDocx handles numbered lists', false, err.message);
+}
+
+// 6e: Horizontal dividers
+const dividerMarkdown = `## Section One\n\nText here.\n\n---\n\n## Section Two\n\nMore text.`;
+try {
+  const buf = await buildMeetingScriptDocx(dividerMarkdown, 'Divider Test');
+  assert('buildMeetingScriptDocx handles horizontal dividers', Buffer.isBuffer(buf));
+} catch (err) {
+  assert('buildMeetingScriptDocx handles horizontal dividers', false, err.message);
 }
 
 // ─── Test 7: API Route Logic (without real Claude) ───────────────────────────
 section('TEST 7: API Route Logic Simulation');
 
-// Simulate the full pipeline: raw Claude text → strip fences → parse JSON → build docs
-const simulatedClaudeOutputs = [
-  { label: 'Raw JSON', text: JSON.stringify({ gamePlan: MOCK_GAME_PLAN, meetingScript: MOCK_MEETING_SCRIPT }) },
-  { label: '```json fenced', text: '```json\n' + JSON.stringify({ gamePlan: MOCK_GAME_PLAN, meetingScript: MOCK_MEETING_SCRIPT }) + '\n```' },
-  { label: 'Preamble + JSON', text: 'Here is the complete plan:\n\n' + JSON.stringify({ gamePlan: MOCK_GAME_PLAN, meetingScript: MOCK_MEETING_SCRIPT }) },
+// Two-call pipeline: game plan JSON + meeting script markdown separately
+
+// 7a: Game plan JSON parsing (3 formats)
+const gamePlanRawOutputs = [
+  { label: 'Raw JSON', text: JSON.stringify(MOCK_GAME_PLAN) },
+  { label: '```json fenced', text: '```json\n' + JSON.stringify(MOCK_GAME_PLAN) + '\n```' },
+  { label: 'Preamble + JSON', text: 'Here is the game plan:\n\n' + JSON.stringify(MOCK_GAME_PLAN) },
 ];
 
-for (const { label, text } of simulatedClaudeOutputs) {
+for (const { label, text } of gamePlanRawOutputs) {
   try {
-    // Replicate route.js parsing logic exactly
-    let cleanText = text.trim();
-    if (cleanText.startsWith('```')) {
-      cleanText = cleanText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    let clean = text.trim();
+    if (clean.startsWith('```')) {
+      clean = clean.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     }
-    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON found');
-    const parsed = JSON.parse(jsonMatch[0]);
-    const { gamePlan, meetingScript } = parsed;
-    if (!gamePlan || !meetingScript) throw new Error('Missing gamePlan or meetingScript');
-
-    const [gpBuf, sBuf] = await Promise.all([
-      buildGamePlanDocx(gamePlan, 'Alex Johnson'),
-      buildMeetingScriptDocx(meetingScript, 'Alex Johnson'),
-    ]);
-    assert(`Full pipeline: ${label}`, Buffer.isBuffer(gpBuf) && Buffer.isBuffer(sBuf) && gpBuf.length > 10000);
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON found');
+    const gamePlan = JSON.parse(match[0]);
+    const gpBuf = await buildGamePlanDocx(gamePlan, 'Alex Johnson');
+    assert(`Game plan pipeline: ${label}`, Buffer.isBuffer(gpBuf) && gpBuf.length > 10000);
   } catch (err) {
-    assert(`Full pipeline: ${label}`, false, err.message);
+    assert(`Game plan pipeline: ${label}`, false, err.message);
   }
+}
+
+// 7b: Meeting script markdown → docx directly
+try {
+  const sBuf = await buildMeetingScriptDocx(MOCK_MEETING_SCRIPT_MARKDOWN, 'Alex Johnson');
+  assert('Meeting script pipeline: markdown → docx', Buffer.isBuffer(sBuf) && sBuf.length > 5000);
+} catch (err) {
+  assert('Meeting script pipeline: markdown → docx', false, err.message);
+}
+
+// 7c: Full parallel pipeline
+try {
+  const gamePlan = JSON.parse(JSON.stringify(MOCK_GAME_PLAN));
+  const [gpBuf, sBuf] = await Promise.all([
+    buildGamePlanDocx(gamePlan, 'Alex Johnson'),
+    buildMeetingScriptDocx(MOCK_MEETING_SCRIPT_MARKDOWN, 'Alex Johnson'),
+  ]);
+  assert('Full parallel pipeline: both docs produced', Buffer.isBuffer(gpBuf) && Buffer.isBuffer(sBuf) && gpBuf.length > 10000 && sBuf.length > 5000);
+} catch (err) {
+  assert('Full parallel pipeline: both docs produced', false, err.message);
 }
 
 // ─── Summary ──────────────────────────────────────────────────────────────────

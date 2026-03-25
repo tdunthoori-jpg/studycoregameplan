@@ -94,7 +94,7 @@ export async function POST(request) {
           return;
         }
 
-        // ── Step 2: Parse JSON from each response ──────────────────────────────
+        // ── Step 2: Parse game plan JSON; meeting script is raw markdown ───────
         function parseJson(rawText, label) {
           let clean = rawText.trim();
           if (clean.startsWith('```')) {
@@ -105,7 +105,7 @@ export async function POST(request) {
           return JSON.parse(match[0]);
         }
 
-        let gamePlan, meetingScript;
+        let gamePlan;
         try {
           gamePlan = parseJson(gamePlanMsg.content[0].text, 'Game plan');
         } catch (err) {
@@ -113,19 +113,15 @@ export async function POST(request) {
           controller.close();
           return;
         }
-        try {
-          meetingScript = parseJson(scriptMsg.content[0].text, 'Meeting script');
-        } catch (err) {
-          line(controller, { status: 'error', error: `Meeting script parse error: ${err.message}. Try generating again.` });
+
+        if (!gamePlan) {
+          line(controller, { status: 'error', error: 'Claude response missing game plan data.' });
           controller.close();
           return;
         }
 
-        if (!gamePlan || !meetingScript) {
-          line(controller, { status: 'error', error: 'Claude response missing gamePlan or meetingScript sections.' });
-          controller.close();
-          return;
-        }
+        // Meeting script is markdown text — use directly
+        const meetingScriptMarkdown = scriptMsg.content[0].text.trim();
 
         // ── Step 3: Build .docx ────────────────────────────────────────────────
         line(controller, { status: 'building', message: 'Building .docx files…' });
@@ -135,7 +131,7 @@ export async function POST(request) {
         try {
           [gamePlanBuffer, scriptBuffer] = await Promise.all([
             buildGamePlanDocx(gamePlan, studentName),
-            buildMeetingScriptDocx(meetingScript, studentName),
+            buildMeetingScriptDocx(meetingScriptMarkdown, studentName),
           ]);
         } catch (err) {
           line(controller, { status: 'error', error: `Document build error: ${err.message}` });

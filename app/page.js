@@ -286,6 +286,11 @@ export default function HomePage() {
   // Notes
   const [notes, setNotes] = useState('');
 
+  // Pricing & Guarantee
+  const [programPrice, setProgramPrice]           = useState('');
+  const [guaranteeThreshold, setGuaranteeThreshold] = useState('');
+  const [paymentStructure, setPaymentStructure]   = useState('');
+
   // PDF parse state
   const [parseStatus, setParseStatus] = useState(null); // null | 'success' | 'error'
   const [parseMessage, setParseMessage] = useState('');
@@ -306,6 +311,14 @@ export default function HomePage() {
   const total    = (parseInt(rwScore) || 0) + (parseInt(mathScore) || 0);
   const totalStr = total > 0 ? String(total) : '';
   const gap      = targetScore && total > 0 ? parseInt(targetScore) - total : null;
+
+  // Auto-calc per-hour rate from total price ÷ total hours
+  const perHourRate = (() => {
+    const price = parseInt(programPrice.replace(/[^0-9]/g, '')) || 0;
+    const hours = parseInt(totalHours) || 0;
+    if (price > 0 && hours > 0) return `$${Math.round(price / hours)}/hr`;
+    return '';
+  })();
 
   // Auto-calc weeks from test date
   useEffect(() => {
@@ -402,6 +415,10 @@ export default function HomePage() {
       homeworkHrs,
       notes,
       additionalData,
+      programPrice:        programPrice || '',
+      perHourRate:         perHourRate || '',
+      guaranteeThreshold:  guaranteeThreshold || '',
+      paymentStructure:    paymentStructure || '',
     };
 
     try {
@@ -738,6 +755,56 @@ export default function HomePage() {
               style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
             />
           </Field>
+        </SectionCard>
+
+        {/* Section 5: Pricing & Guarantee */}
+        <SectionCard number="5" title="Pricing & Guarantee (Optional — for Meeting Script)">
+          <div style={{ fontSize: 13, color: '#666', marginBottom: 16, fontStyle: 'italic' }}>
+            Leave blank to skip the pricing section in the script. If filled in, the script will include the full close with exact dollar amounts, value comparison, and urgency framing.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+            <Field label="Total Program Price" hint='e.g. $2,000 or $3,200'>
+              <Input
+                value={programPrice}
+                onChange={setProgramPrice}
+                placeholder="e.g. $2,000"
+              />
+            </Field>
+            <Field label="Per-Hour Rate" hint="Auto-calculated from price ÷ hours">
+              <Input
+                value={perHourRate}
+                onChange={() => {}}
+                placeholder="—"
+                style={{ background: '#f7fafd', color: perHourRate ? STYLES.navy : '#aaa', fontWeight: perHourRate ? 700 : 400 }}
+              />
+            </Field>
+            <Field label="Score Guarantee Threshold" hint='e.g. 1400+ or 1100+'>
+              <Input
+                value={guaranteeThreshold}
+                onChange={setGuaranteeThreshold}
+                placeholder="e.g. 1400+"
+              />
+            </Field>
+            <Field label="Payment Structure" hint='e.g. Full upfront · or: $1,600 / $1,600'>
+              <Input
+                value={paymentStructure}
+                onChange={setPaymentStructure}
+                placeholder="e.g. Full upfront"
+              />
+            </Field>
+          </div>
+          {programPrice && perHourRate && (
+            <div style={{
+              background: '#eaf3fb', border: `1px solid ${STYLES.blue}`,
+              borderLeft: `4px solid ${STYLES.blue}`,
+              borderRadius: 6, padding: '10px 14px', marginTop: 4,
+              fontSize: 13, color: STYLES.navy,
+            }}>
+              💰 <strong>{programPrice}</strong> total &nbsp;·&nbsp; <strong>{perHourRate}</strong> &nbsp;·&nbsp;
+              {guaranteeThreshold && <><strong>{guaranteeThreshold}</strong> guarantee &nbsp;·&nbsp;</>}
+              Script will include full pricing close + objection handlers
+            </div>
+          )}
         </SectionCard>
 
         {/* Generate Button */}
