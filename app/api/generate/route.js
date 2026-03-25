@@ -76,9 +76,15 @@ export async function POST(request) {
         }
 
         // ── Step 2: Parse JSON ─────────────────────────────────────────────────
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        // Strip markdown code fences if Claude wrapped the response
+        let cleanText = rawText.trim();
+        if (cleanText.startsWith('```')) {
+          cleanText = cleanText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+        }
+
+        const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-          line(controller, { status: 'error', error: 'Claude did not return valid JSON. Try generating again.', raw: rawText.slice(0, 300) });
+          line(controller, { status: 'error', error: 'Claude did not return valid JSON. Try generating again.', raw: rawText.slice(0, 500) });
           controller.close();
           return;
         }
@@ -86,8 +92,9 @@ export async function POST(request) {
         let parsed;
         try {
           parsed = JSON.parse(jsonMatch[0]);
-        } catch {
-          line(controller, { status: 'error', error: 'JSON parse error in Claude response. Try generating again.' });
+        } catch (parseErr) {
+          // Include the tail of the raw text to help diagnose truncation
+          line(controller, { status: 'error', error: 'JSON parse error in Claude response. Try generating again.', raw: rawText.slice(-300) });
           controller.close();
           return;
         }
