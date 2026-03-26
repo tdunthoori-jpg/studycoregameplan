@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { GAME_PLAN_SYSTEM_PROMPT, MEETING_SCRIPT_SYSTEM_PROMPT, buildGenerationPrompt } from '../../../lib/prompts';
-import { buildGamePlanDocx } from '../../../lib/docx-builder';
-import { buildMeetingScriptDocx } from '../../../lib/script-builder';
+import { buildGamePlanPdf } from '../../../lib/pdf-game-plan';
+import { buildMeetingScriptPdf } from '../../../lib/pdf-script';
 
 export const maxDuration = 300;
 
@@ -165,8 +165,8 @@ export async function POST(request) {
         let gamePlanBuffer, scriptBuffer;
         try {
           [gamePlanBuffer, scriptBuffer] = await Promise.all([
-            buildGamePlanDocx(gamePlan, studentName),
-            buildMeetingScriptDocx(meetingScriptMarkdown, studentName),
+            buildGamePlanPdf(gamePlan, studentName),
+            buildMeetingScriptPdf(meetingScriptMarkdown, studentName),
           ]);
         } catch (err) {
           line(controller, { status: 'error', error: `Document build error: ${err.message}` });

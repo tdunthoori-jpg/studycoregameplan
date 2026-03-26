@@ -559,7 +559,7 @@ export default function HomePage() {
 
   function downloadFile(base64, filename) {
     const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-    const blob  = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const blob  = new Blob([bytes], { type: 'application/pdf' });
     const url   = URL.createObjectURL(blob);
     const a     = document.createElement('a');
     a.href      = url;
@@ -921,24 +921,24 @@ export default function HomePage() {
             </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <button
-                onClick={() => downloadFile(downloads.gamePlan, `${downloads.name}_GamePlan.docx`)}
+                onClick={() => downloadFile(downloads.gamePlan, `${downloads.name}_GamePlan.pdf`)}
                 style={{
                   background: STYLES.navy, color: '#fff', border: 'none', borderRadius: 6,
                   padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 8,
                 }}
               >
-                📋 Download Game Plan (.docx)
+                📋 Download Game Plan (.pdf)
               </button>
               <button
-                onClick={() => downloadFile(downloads.script, `${downloads.name}_MeetingScript.docx`)}
+                onClick={() => downloadFile(downloads.script, `${downloads.name}_MeetingScript.pdf`)}
                 style={{
                   background: STYLES.blue, color: '#fff', border: 'none', borderRadius: 6,
                   padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 8,
                 }}
               >
-                🎤 Download Meeting Script (.docx)
+                🎤 Download Meeting Script (.pdf)
               </button>
             </div>
           </div>
