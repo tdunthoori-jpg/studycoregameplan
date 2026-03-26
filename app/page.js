@@ -157,34 +157,52 @@ function Select({ value, onChange, options, highlight }) {
 
 function UploadZone({ onParsed, onError, isParsing, setIsParsing }) {
   const [dragOver, setDragOver] = useState(false);
+  const [fileQueue, setFileQueue] = useState([]);
   const inputRef = useRef();
+  const idRef = useRef(0);
 
-  async function processFile(file) {
-    if (!file) return;
+  async function processFiles(fileList) {
     const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
-    if (!allowed.includes(file.type)) {
-      onError('Unsupported file type. Please upload a PDF or image (PNG, JPG, WEBP).');
+    const files = Array.from(fileList).filter(f => allowed.includes(f.type));
+
+    if (files.length === 0) {
+      onError('Unsupported file type. Please upload PDFs or images (PNG, JPG, WEBP).');
       return;
     }
+
+    const newEntries = files.map(f => ({ id: idRef.current++, name: f.name, status: 'pending' }));
+    setFileQueue(prev => [...prev, ...newEntries]);
     setIsParsing(true);
-    try {
-      const base64 = await toBase64(file);
-      const res = await fetch('/api/parse-score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileData: base64, mediaType: file.type }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        onError(json.error || 'Failed to parse score report.');
-      } else {
-        onParsed(json.data);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const id = newEntries[i].id;
+
+      setFileQueue(prev => prev.map(e => e.id === id ? { ...e, status: 'parsing' } : e));
+
+      try {
+        const base64 = await toBase64(file);
+        const res = await fetch('/api/parse-score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileData: base64, mediaType: file.type }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          setFileQueue(prev => prev.map(e => e.id === id ? { ...e, status: 'error', msg: json.error || 'Parse failed' } : e));
+        } else {
+          const d = json.data;
+          const score = d.totalScore || ((d.rwScore || 0) + (d.mathScore || 0)) || null;
+          const label = [d.testType, score].filter(Boolean).join(' · ');
+          setFileQueue(prev => prev.map(e => e.id === id ? { ...e, status: 'done', label } : e));
+          onParsed(json.data, file.name);
+        }
+      } catch {
+        setFileQueue(prev => prev.map(e => e.id === id ? { ...e, status: 'error', msg: 'Network error — try again' } : e));
       }
-    } catch (err) {
-      onError('Network error — please try again.');
-    } finally {
-      setIsParsing(false);
     }
+
+    setIsParsing(false);
   }
 
   function toBase64(file) {
@@ -196,48 +214,85 @@ function UploadZone({ onParsed, onError, isParsing, setIsParsing }) {
     });
   }
 
+  const anyActive = isParsing && fileQueue.some(e => e.status === 'parsing' || e.status === 'pending');
+
   return (
-    <div
-      onClick={() => !isParsing && inputRef.current?.click()}
-      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={e => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files[0]); }}
-      style={{
-        border: `2px dashed ${dragOver ? STYLES.blue : '#b0c4d8'}`,
-        borderRadius: 8,
-        padding: '28px 20px',
-        textAlign: 'center',
-        background: dragOver ? '#eaf3fb' : '#f7fafd',
-        cursor: isParsing ? 'wait' : 'pointer',
-        marginBottom: 20,
-        transition: 'all 0.15s',
-      }}
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".pdf,.png,.jpg,.jpeg,.webp"
-        style={{ display: 'none' }}
-        onChange={e => processFile(e.target.files[0])}
-      />
-      {isParsing ? (
-        <div>
-          <Spinner />
-          <div style={{ marginTop: 10, color: STYLES.navy, fontWeight: 600 }}>Parsing score report with Claude Vision…</div>
+    <div>
+      <div
+        onClick={() => !isParsing && inputRef.current?.click()}
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={e => { e.preventDefault(); setDragOver(false); processFiles(e.dataTransfer.files); }}
+        style={{
+          border: `2px dashed ${dragOver ? STYLES.blue : '#b0c4d8'}`,
+          borderRadius: 8,
+          padding: '28px 20px',
+          textAlign: 'center',
+          background: dragOver ? '#eaf3fb' : '#f7fafd',
+          cursor: isParsing ? 'wait' : 'pointer',
+          marginBottom: fileQueue.length > 0 ? 10 : 20,
+          transition: 'all 0.15s',
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg,.webp"
+          multiple
+          style={{ display: 'none' }}
+          onChange={e => { processFiles(e.target.files); e.target.value = ''; }}
+        />
+        {anyActive ? (
+          <div>
+            <Spinner />
+            <div style={{ marginTop: 10, color: STYLES.navy, fontWeight: 600 }}>
+              Parsing score report{fileQueue.filter(e => e.status === 'parsing' || e.status === 'pending').length > 1 ? 's' : ''}…
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>📄</div>
+            <div style={{ fontWeight: 700, color: STYLES.navy, fontSize: 15, marginBottom: 4 }}>
+              Drag & drop score reports here
+            </div>
+            <div style={{ color: '#666', fontSize: 13 }}>
+              or click to browse — PDF, PNG, or JPG · multiple files OK
+            </div>
+            <div style={{ color: '#999', fontSize: 12, marginTop: 6 }}>
+              College Board, Huntington, StudyCore, or any practice test
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Per-file status list */}
+      {fileQueue.length > 0 && (
+        <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {fileQueue.map(item => (
+            <div key={item.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: item.status === 'done' ? '#eafaf1' : item.status === 'error' ? '#fdf0ef' : '#f7fafd',
+              border: `1px solid ${item.status === 'done' ? '#27AE60' : item.status === 'error' ? '#C0392B' : '#dde3ec'}`,
+              borderRadius: 6, padding: '7px 12px', fontSize: 13,
+            }}>
+              <span>
+                {item.status === 'done' ? '✅' : item.status === 'error' ? '⚠️' : item.status === 'parsing' ? '⏳' : '⌛'}
+              </span>
+              <span style={{ color: '#555', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {item.name}
+              </span>
+              {item.label && (
+                <span style={{ color: STYLES.navy, fontWeight: 700, whiteSpace: 'nowrap' }}>{item.label}</span>
+              )}
+              {item.msg && (
+                <span style={{ color: '#922b21', whiteSpace: 'nowrap' }}>{item.msg}</span>
+              )}
+            </div>
+          ))}
+          <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic', marginTop: 2 }}>
+            Form fields updated below — later uploads overwrite earlier values where non-null.
+          </div>
         </div>
-      ) : (
-        <>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📄</div>
-          <div style={{ fontWeight: 700, color: STYLES.navy, fontSize: 15, marginBottom: 4 }}>
-            Drag & drop score report here
-          </div>
-          <div style={{ color: '#666', fontSize: 13 }}>
-            or click to browse — PDF, PNG, or JPG
-          </div>
-          <div style={{ color: '#999', fontSize: 12, marginTop: 6 }}>
-            College Board, Huntington, StudyCore, or any practice test
-          </div>
-        </>
       )}
     </div>
   );
@@ -345,7 +400,8 @@ export default function HomePage() {
   }
 
   // ── Score report parsed ──────────────────────────────────────────────────────
-  function handleParsed(data) {
+  // Called once per file; later files overwrite fields where non-null.
+  function handleParsed(data, filename) {
     const highlighted = [];
     if (data.studentName) { setStudentName(data.studentName); highlighted.push('studentName'); }
     if (data.grade)       { setGrade(data.grade);             highlighted.push('grade'); }
@@ -375,10 +431,16 @@ export default function HomePage() {
       }
     }
 
-    if (data.additionalData) setAdditionalData(data.additionalData);
+    // Accumulate additionalData across multiple reports
+    if (data.additionalData) {
+      setAdditionalData(prev => {
+        if (!prev) return data.additionalData;
+        const separator = filename ? `\n\n--- ${filename} ---\n` : '\n\n---\n';
+        return `${prev}${separator}${data.additionalData}`;
+      });
+    }
+
     setHighlightedFields(highlighted);
-    setParseStatus('success');
-    setParseMessage('Score report parsed — verify data below, then fill in target info and generate.');
     setTimeout(() => setHighlightedFields([]), 4000);
   }
 
@@ -534,7 +596,7 @@ export default function HomePage() {
         {/* Upload section */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: STYLES.navy, marginBottom: 8, letterSpacing: 0.3 }}>
-            UPLOAD SCORE REPORT (OPTIONAL — AUTO-FILLS FORM)
+            UPLOAD SCORE REPORTS (OPTIONAL — AUTO-FILLS FORM · MULTIPLE OK)
           </div>
           <UploadZone
             onParsed={handleParsed}
@@ -542,11 +604,6 @@ export default function HomePage() {
             isParsing={isParsing}
             setIsParsing={setIsParsing}
           />
-          {parseStatus === 'success' && (
-            <div style={{ background: '#eafaf1', border: '1px solid #27AE60', borderRadius: 6, padding: '10px 14px', color: '#1e7e44', fontSize: 14, fontWeight: 600 }}>
-              ✅ {parseMessage}
-            </div>
-          )}
           {parseStatus === 'error' && (
             <div style={{ background: '#fdf0ef', border: '1px solid #C0392B', borderRadius: 6, padding: '10px 14px', color: '#922b21', fontSize: 14 }}>
               ⚠️ {parseMessage} — <span style={{ fontWeight: 700 }}>Enter scores manually below.</span>
