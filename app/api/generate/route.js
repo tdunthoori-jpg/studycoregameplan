@@ -34,6 +34,40 @@ export async function POST(request) {
           return;
         }
 
+        // ── Step 1: Pre-generation validation ───────────────────────────────────
+        const missingFields = [];
+
+        // Required score fields
+        const { totalScore, rwScore, mathScore, targetScore, domains } = studentData;
+        if (!totalScore && !(rwScore && mathScore)) missingFields.push('currentScore (totalScore or rwScore+mathScore)');
+        if (!targetScore) missingFields.push('targetScore');
+
+        // All 8 domain scores required
+        const domainMap = {
+          'domains.ii  (Information & Ideas)': domains?.ii,
+          'domains.cs  (Craft & Structure)': domains?.cs,
+          'domains.eoi (Expression of Ideas)': domains?.eoi,
+          'domains.sec (Standard English Conventions)': domains?.sec,
+          'domains.alg (Algebra)': domains?.alg,
+          'domains.am  (Advanced Math)': domains?.am,
+          'domains.psda (Problem-Solving & Data Analysis)': domains?.psda,
+          'domains.gt  (Geometry & Trigonometry)': domains?.gt,
+        };
+        for (const [label, val] of Object.entries(domainMap)) {
+          if (!val || val === 'N/A') missingFields.push(label);
+        }
+
+        if (missingFields.length > 0) {
+          line(controller, {
+            status: 'error',
+            error: `Cannot generate script — the following required fields are missing from the Game Plan:\n• ${missingFields.join('\n• ')}`,
+          });
+          controller.close();
+          return;
+        }
+
+        // Pricing is optional — script will omit Section 7 if blank (no error)
+
         // Send immediate heartbeat so the connection isn't dropped
         line(controller, { status: 'generating', message: 'Calling Claude Sonnet — this takes 30–90 seconds…' });
 
@@ -63,7 +97,8 @@ export async function POST(request) {
             }),
             client.messages.create({
               model: 'claude-sonnet-4-6',
-              max_tokens: 10000,
+              max_tokens: 16000,
+              temperature: 0.3,
               system: MEETING_SCRIPT_SYSTEM_PROMPT,
               messages: [{ role: 'user', content: userPrompt }],
             }),
