@@ -518,7 +518,7 @@ export default function HomePage() {
           } else if (msg.status === 'building') {
             setGenStatus(msg.message || 'Building .docx files…');
           } else if (msg.status === 'done') {
-            setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, name: msg.studentName });
+            setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, presentation: msg.presentationBase64, name: msg.studentName });
             setGenStatus('');
             return;
           } else if (msg.status === 'error') {
@@ -533,7 +533,7 @@ export default function HomePage() {
         let msg;
         try { msg = JSON.parse(buffer); } catch { /* incomplete data */ }
         if (msg?.status === 'done') {
-          setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, name: msg.studentName });
+          setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, presentation: msg.presentationBase64, name: msg.studentName });
           setGenStatus('');
           return;
         } else if (msg?.status === 'error') {
@@ -893,7 +893,7 @@ export default function HomePage() {
               <span>{genStatus || 'Starting…'}</span>
             </>
           ) : (
-            '⚡ Generate Game Plan + Meeting Script'
+            '⚡ Generate Game Plan + Meeting Script + Presentation'
           )}
         </button>
 
@@ -917,7 +917,7 @@ export default function HomePage() {
               ✅ Files ready for {downloads.name}
             </div>
             <div style={{ color: '#555', fontSize: 13, marginBottom: 16 }}>
-              Click below to download both .docx files.
+              Click below to download all three deliverables.
             </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <button
@@ -940,6 +940,18 @@ export default function HomePage() {
               >
                 🎤 Download Meeting Script (.pdf)
               </button>
+              {downloads.presentation && (
+                <button
+                  onClick={() => downloadFile(downloads.presentation, `${downloads.name}_SAT_GamePlan_Presentation.pdf`)}
+                  style={{
+                    background: '#FF6B5A', color: '#fff', border: 'none', borderRadius: 6,
+                    padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  🖥️ Download Demo Presentation (.pdf)
+                </button>
+              )}
             </div>
           </div>
         )}

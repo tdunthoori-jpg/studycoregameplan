@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GAME_PLAN_SYSTEM_PROMPT, MEETING_SCRIPT_SYSTEM_PROMPT, buildGenerationPrompt } from '../../../lib/prompts';
 import { buildGamePlanPdf } from '../../../lib/pdf-game-plan';
 import { buildMeetingScriptPdf } from '../../../lib/pdf-script';
+import { buildPresentationPdf } from '../../../lib/pdf-presentation';
 
 export const maxDuration = 300;
 
@@ -158,15 +159,16 @@ export async function POST(request) {
         // Meeting script is markdown text — use directly
         const meetingScriptMarkdown = scriptMsg.content[0].text.trim();
 
-        // ── Step 3: Build .docx ────────────────────────────────────────────────
-        line(controller, { status: 'building', message: 'Building .docx files…' });
+        // ── Step 3: Build PDFs ─────────────────────────────────────────────────
+        line(controller, { status: 'building', message: 'Building PDF files…' });
 
         const studentName = studentData.studentName || 'Student';
-        let gamePlanBuffer, scriptBuffer;
+        let gamePlanBuffer, scriptBuffer, presentationBuffer;
         try {
-          [gamePlanBuffer, scriptBuffer] = await Promise.all([
+          [gamePlanBuffer, scriptBuffer, presentationBuffer] = await Promise.all([
             buildGamePlanPdf(gamePlan, studentName),
             buildMeetingScriptPdf(meetingScriptMarkdown, studentName),
+            buildPresentationPdf(gamePlan, studentData, studentName),
           ]);
         } catch (err) {
           line(controller, { status: 'error', error: `Document build error: ${err.message}` });
@@ -177,8 +179,9 @@ export async function POST(request) {
         // ── Step 4: Send result ────────────────────────────────────────────────
         line(controller, {
           status: 'done',
-          gamePlanBase64: Buffer.from(gamePlanBuffer).toString('base64'),
-          scriptBase64:   Buffer.from(scriptBuffer).toString('base64'),
+          gamePlanBase64:      Buffer.from(gamePlanBuffer).toString('base64'),
+          scriptBase64:        Buffer.from(scriptBuffer).toString('base64'),
+          presentationBase64:  Buffer.from(presentationBuffer).toString('base64'),
           studentName,
         });
 
