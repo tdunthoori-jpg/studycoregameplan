@@ -131,14 +131,54 @@ export async function POST(request) {
         }
 
         // ── Step 2: Parse game plan JSON; meeting script is raw markdown ───────
+
+        // Fix the most common ways Claude produces malformed JSON:
+        // 1. Literal (unescaped) newlines / tabs / carriage-returns inside strings
+        // 2. Trailing commas before } or ]
+        // 3. Curly/smart quotes instead of straight ASCII quotes
+        function repairJson(str) {
+          // Pass 1: walk character-by-character to escape control chars inside strings
+          let inString = false;
+          let escaped  = false;
+          let out      = '';
+          for (let i = 0; i < str.length; i++) {
+            const ch = str[i];
+            if (escaped) { out += ch; escaped = false; continue; }
+            if (ch === '\\' && inString) { out += ch; escaped = true; continue; }
+            if (ch === '"') { out += ch; inString = !inString; continue; }
+            if (inString) {
+              if      (ch === '\n') { out += '\\n';  continue; }
+              else if (ch === '\r') { out += '\\r';  continue; }
+              else if (ch === '\t') { out += '\\t';  continue; }
+              // Replace smart/curly quotes that occasionally appear in strings
+              else if (ch === '“' || ch === '”') { out += '"'; continue; }
+              else if (ch === '‘' || ch === '’') { out += "'"; continue; }
+            }
+            out += ch;
+          }
+          // Pass 2: strip trailing commas before } or ]
+          return out.replace(/,(\s*[}\]])/g, '$1');
+        }
+
         function parseJson(rawText, label) {
           let clean = rawText.trim();
+          // Strip markdown code fences
           if (clean.startsWith('```')) {
             clean = clean.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
           }
           const match = clean.match(/\{[\s\S]*\}/);
           if (!match) throw new Error(`${label}: no JSON object found in response`);
-          return JSON.parse(match[0]);
+          const jsonStr = match[0];
+          // First try straight parse; on failure, attempt repair then retry
+          try {
+            return JSON.parse(jsonStr);
+          } catch (firstErr) {
+            try {
+              return JSON.parse(repairJson(jsonStr));
+            } catch {
+              throw firstErr; // surface the original error message
+            }
+          }
         }
 
         let gamePlan;
