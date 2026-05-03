@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { GAME_PLAN_SYSTEM_PROMPT, MEETING_SCRIPT_SYSTEM_PROMPT, buildGenerationPrompt } from '../../../lib/prompts';
+import { GAME_PLAN_SYSTEM_PROMPT, MEETING_SCRIPT_SYSTEM_PROMPT, buildGenerationPrompt, buildGamePlanPrompt } from '../../../lib/prompts';
 import { buildGamePlanPdf } from '../../../lib/pdf-game-plan';
 import { buildMeetingScriptPdf } from '../../../lib/pdf-script';
 import { buildPresentationPdf } from '../../../lib/pdf-presentation';
@@ -73,7 +73,9 @@ export async function POST(request) {
         line(controller, { status: 'generating', message: 'Calling Claude Sonnet — this takes 30–90 seconds…' });
 
         const client = new Anthropic({ apiKey });
-        const userPrompt = buildGenerationPrompt(studentData);
+        // Game plan prompt intentionally excludes pricing — pricing is for the meeting script only
+        const gamePlanPrompt = buildGamePlanPrompt(studentData);
+        const scriptPrompt   = buildGenerationPrompt(studentData);
 
         // ── Step 1: Call Claude twice in parallel (game plan + meeting script) ─
         // Running in parallel halves the wait time and keeps each response
@@ -94,14 +96,14 @@ export async function POST(request) {
               model: 'claude-sonnet-4-6',
               max_tokens: 16000,
               system: GAME_PLAN_SYSTEM_PROMPT,
-              messages: [{ role: 'user', content: userPrompt }],
+              messages: [{ role: 'user', content: gamePlanPrompt }],
             }),
             client.messages.create({
               model: 'claude-sonnet-4-6',
               max_tokens: 16000,
               temperature: 0.3,
               system: MEETING_SCRIPT_SYSTEM_PROMPT,
-              messages: [{ role: 'user', content: userPrompt }],
+              messages: [{ role: 'user', content: scriptPrompt }],
             }),
           ]);
         } catch (err) {
