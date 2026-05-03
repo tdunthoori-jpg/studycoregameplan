@@ -397,6 +397,7 @@ export default function HomePage() {
     setSessionsPerWeek(String(rec.sessionsPerWeek));
     setSessionLength(rec.sessionLength);
     setHomeworkHrs(rec.homeworkHrs);
+    if (rec.planWeeks) setWeeks(String(rec.planWeeks));
   }
 
   // ── Score report parsed ──────────────────────────────────────────────────────
@@ -768,7 +769,7 @@ export default function HomePage() {
                 💡 Recommended Program
               </div>
               <div style={{ fontSize: 13, color: '#444', marginBottom: 10 }}>
-                {rec.totalHours} hrs total &nbsp;·&nbsp; {rec.sessionsPerWeek}x/week &nbsp;·&nbsp; {rec.sessionLength} sessions &nbsp;·&nbsp; {rec.homeworkHrs} hrs homework/week
+                {rec.totalHours} hrs total &nbsp;·&nbsp; {rec.planWeeks}-week plan &nbsp;·&nbsp; {rec.sessionsPerWeek}x/week &nbsp;·&nbsp; {rec.sessionLength} sessions &nbsp;·&nbsp; {rec.homeworkHrs} hrs homework/week
               </div>
               <div style={{ fontSize: 12, color: '#666', marginBottom: 10, fontStyle: 'italic' }}>{rec.note}</div>
               <button
