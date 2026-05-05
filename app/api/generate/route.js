@@ -5,7 +5,7 @@ import {
 } from '../../../lib/prompts';
 import { buildGamePlanPdf } from '../../../lib/pdf-game-plan';
 import { buildMeetingScriptPdf } from '../../../lib/pdf-script';
-import { buildPresentationPdf } from '../../../lib/pdf-presentation';
+import { buildPresentationPdf, buildPresentationPptx } from '../../../lib/pdf-presentation';
 
 export const maxDuration = 300;
 
@@ -212,12 +212,13 @@ export async function POST(request) {
         line(controller, { status: 'building', message: 'Building PDF files…' });
 
         const studentName = studentData.studentName || 'Student';
-        let gamePlanBuffer, scriptBuffer, presentationBuffer;
+        let gamePlanBuffer, scriptBuffer, presentationBuffer, pptxBuffer;
         try {
-          [gamePlanBuffer, scriptBuffer, presentationBuffer] = await Promise.all([
+          [gamePlanBuffer, scriptBuffer, presentationBuffer, pptxBuffer] = await Promise.all([
             buildGamePlanPdf(gamePlan, studentName),
             buildMeetingScriptPdf(meetingScriptMarkdown, studentName),
             buildPresentationPdf(gamePlan, studentData, studentName),
+            buildPresentationPptx(gamePlan, studentData, studentName),
           ]);
         } catch (err) {
           line(controller, { status: 'error', error: `Document build error: ${err.message}` });
@@ -230,6 +231,7 @@ export async function POST(request) {
           gamePlanBase64:      Buffer.from(gamePlanBuffer).toString('base64'),
           scriptBase64:        Buffer.from(scriptBuffer).toString('base64'),
           presentationBase64:  Buffer.from(presentationBuffer).toString('base64'),
+          pptxBase64:          Buffer.from(pptxBuffer).toString('base64'),
           studentName,
         });
 

@@ -564,7 +564,7 @@ export default function HomePage() {
           } else if (msg.status === 'building') {
             setGenStatus(msg.message || 'Building .docx files…');
           } else if (msg.status === 'done') {
-            setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, presentation: msg.presentationBase64, name: msg.studentName });
+            setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, presentation: msg.presentationBase64, pptx: msg.pptxBase64, name: msg.studentName });
             setGenStatus('');
             return;
           } else if (msg.status === 'error') {
@@ -579,7 +579,7 @@ export default function HomePage() {
         let msg;
         try { msg = JSON.parse(buffer); } catch { /* incomplete data */ }
         if (msg?.status === 'done') {
-          setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, presentation: msg.presentationBase64, name: msg.studentName });
+          setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, presentation: msg.presentationBase64, pptx: msg.pptxBase64, name: msg.studentName });
           setGenStatus('');
           return;
         } else if (msg?.status === 'error') {
@@ -1009,7 +1009,7 @@ export default function HomePage() {
               ✅ Files ready for {downloads.name}
             </div>
             <div style={{ color: '#555', fontSize: 13, marginBottom: 16 }}>
-              Click below to download all three deliverables.
+              Click below to download all deliverables. The .pptx can be imported into Google Slides for editing.
             </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <button
@@ -1041,7 +1041,19 @@ export default function HomePage() {
                     display: 'flex', alignItems: 'center', gap: 8,
                   }}
                 >
-                  🖥️ Download Demo Presentation (.pdf)
+                  🖥️ Download Presentation (.pdf)
+                </button>
+              )}
+              {downloads.pptx && (
+                <button
+                  onClick={() => downloadFile(downloads.pptx, `${downloads.name}_${isACT ? 'ACT' : 'SAT'}_GamePlan_Presentation.pptx`)}
+                  style={{
+                    background: '#217346', color: '#fff', border: 'none', borderRadius: 6,
+                    padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  📊 Download Presentation (.pptx)
                 </button>
               )}
             </div>
