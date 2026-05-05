@@ -1,5 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { GAME_PLAN_SYSTEM_PROMPT, MEETING_SCRIPT_SYSTEM_PROMPT, buildGenerationPrompt, buildGamePlanPrompt } from '../../../lib/prompts';
+import {
+  GAME_PLAN_SYSTEM_PROMPT, MEETING_SCRIPT_SYSTEM_PROMPT, buildGenerationPrompt, buildGamePlanPrompt,
+  ACT_GAME_PLAN_SYSTEM_PROMPT, ACT_MEETING_SCRIPT_SYSTEM_PROMPT, buildACTGamePlanPrompt, buildACTGenerationPrompt,
+} from '../../../lib/prompts';
 import { buildGamePlanPdf } from '../../../lib/pdf-game-plan';
 import { buildMeetingScriptPdf } from '../../../lib/pdf-script';
 import { buildPresentationPdf } from '../../../lib/pdf-presentation';
@@ -37,31 +40,40 @@ export async function POST(request) {
 
         // ── Step 1: Pre-generation validation ───────────────────────────────────
         const missingFields = [];
+        const isACT = (studentData.testType || '').toUpperCase() === 'ACT';
 
-        // Required score fields
         const { totalScore, rwScore, mathScore, targetScore, domains } = studentData;
-        if (!totalScore && !(rwScore && mathScore)) missingFields.push('currentScore (totalScore or rwScore+mathScore)');
-        if (!targetScore) missingFields.push('targetScore');
 
-        // All 8 domain scores required
-        const domainMap = {
-          'domains.ii  (Information & Ideas)': domains?.ii,
-          'domains.cs  (Craft & Structure)': domains?.cs,
-          'domains.eoi (Expression of Ideas)': domains?.eoi,
-          'domains.sec (Standard English Conventions)': domains?.sec,
-          'domains.alg (Algebra)': domains?.alg,
-          'domains.am  (Advanced Math)': domains?.am,
-          'domains.psda (Problem-Solving & Data Analysis)': domains?.psda,
-          'domains.gt  (Geometry & Trigonometry)': domains?.gt,
-        };
-        for (const [label, val] of Object.entries(domainMap)) {
-          if (!val || val === 'N/A') missingFields.push(label);
+        if (isACT) {
+          // ACT validation: need composite (or all 4 sections) + target
+          const hasComposite = !!totalScore;
+          const hasSections  = !!(domains?.actEnglish && domains?.actMath && domains?.actReading && domains?.actScience);
+          if (!hasComposite && !hasSections) missingFields.push('ACT composite or all four section scores (English, Math, Reading, Science)');
+          if (!targetScore) missingFields.push('targetScore (ACT target composite)');
+        } else {
+          // SAT/PSAT validation: need total/sections + all 8 domains
+          if (!totalScore && !(rwScore && mathScore)) missingFields.push('currentScore (totalScore or rwScore+mathScore)');
+          if (!targetScore) missingFields.push('targetScore');
+
+          const domainMap = {
+            'domains.ii  (Information & Ideas)': domains?.ii,
+            'domains.cs  (Craft & Structure)': domains?.cs,
+            'domains.eoi (Expression of Ideas)': domains?.eoi,
+            'domains.sec (Standard English Conventions)': domains?.sec,
+            'domains.alg (Algebra)': domains?.alg,
+            'domains.am  (Advanced Math)': domains?.am,
+            'domains.psda (Problem-Solving & Data Analysis)': domains?.psda,
+            'domains.gt  (Geometry & Trigonometry)': domains?.gt,
+          };
+          for (const [label, val] of Object.entries(domainMap)) {
+            if (!val || val === 'N/A') missingFields.push(label);
+          }
         }
 
         if (missingFields.length > 0) {
           line(controller, {
             status: 'error',
-            error: `Cannot generate script — the following required fields are missing from the Game Plan:\n• ${missingFields.join('\n• ')}`,
+            error: `Cannot generate — the following required fields are missing:\n• ${missingFields.join('\n• ')}`,
           });
           controller.close();
           return;
@@ -73,9 +85,12 @@ export async function POST(request) {
         line(controller, { status: 'generating', message: 'Calling Claude Sonnet — this takes 30–90 seconds…' });
 
         const client = new Anthropic({ apiKey });
-        // Game plan prompt intentionally excludes pricing — pricing is for the meeting script only
-        const gamePlanPrompt = buildGamePlanPrompt(studentData);
-        const scriptPrompt   = buildGenerationPrompt(studentData);
+
+        // Route to ACT or SAT prompts
+        const gamePlanSystemPrompt = isACT ? ACT_GAME_PLAN_SYSTEM_PROMPT   : GAME_PLAN_SYSTEM_PROMPT;
+        const scriptSystemPrompt   = isACT ? ACT_MEETING_SCRIPT_SYSTEM_PROMPT : MEETING_SCRIPT_SYSTEM_PROMPT;
+        const gamePlanPrompt       = isACT ? buildACTGamePlanPrompt(studentData)   : buildGamePlanPrompt(studentData);
+        const scriptPrompt         = isACT ? buildACTGenerationPrompt(studentData) : buildGenerationPrompt(studentData);
 
         // ── Step 1: Call Claude twice in parallel (game plan + meeting script) ─
         // Running in parallel halves the wait time and keeps each response
@@ -95,14 +110,14 @@ export async function POST(request) {
             client.messages.create({
               model: 'claude-sonnet-4-6',
               max_tokens: 16000,
-              system: GAME_PLAN_SYSTEM_PROMPT,
+              system: gamePlanSystemPrompt,
               messages: [{ role: 'user', content: gamePlanPrompt }],
             }),
             client.messages.create({
               model: 'claude-sonnet-4-6',
               max_tokens: 16000,
               temperature: 0.3,
-              system: MEETING_SCRIPT_SYSTEM_PROMPT,
+              system: scriptSystemPrompt,
               messages: [{ role: 'user', content: scriptPrompt }],
             }),
           ]);

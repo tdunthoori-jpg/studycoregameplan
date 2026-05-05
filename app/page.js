@@ -42,14 +42,24 @@ const STYLES = {
   red:    '#C0392B',
 };
 
-function gapColor(gap) {
+function gapColor(gap, isACT = false) {
   if (!gap || gap <= 0) return STYLES.green;
+  if (isACT) {
+    if (gap <= 3) return STYLES.green;
+    if (gap <= 6) return STYLES.orange;
+    return STYLES.red;
+  }
   if (gap <= 200) return STYLES.green;
   if (gap <= 300) return STYLES.orange;
   return STYLES.red;
 }
-function gapLabel(gap) {
+function gapLabel(gap, isACT = false) {
   if (!gap || gap <= 0) return '✅ Already at or above target';
+  if (isACT) {
+    if (gap <= 2) return '✅ Very achievable';
+    if (gap <= 5) return '📈 Ambitious but achievable with full homework';
+    return '⚠️ Plan will set honest realistic + aspirational targets';
+  }
   if (gap <= 200) return gap <= 100 ? '✅ Very achievable' : '📈 Ambitious but achievable with full homework';
   if (gap <= 300) return '📈 Ambitious but achievable with full homework';
   return '⚠️ Plan will set honest realistic + aspirational targets';
@@ -328,7 +338,13 @@ export default function HomePage() {
   const [studentState, setStudentState] = useState('');
   const [collegeSuggestions, setCollegeSuggestions] = useState([]);
 
-  // Domains
+  // ACT section scores
+  const [actEnglish, setActEnglish] = useState('');
+  const [actMath, setActMath]       = useState('');
+  const [actReading, setActReading] = useState('');
+  const [actScience, setActScience] = useState('');
+
+  // Domains (SAT only)
   const [domains, setDomains] = useState({ ...defaultDomains });
 
   // Program
@@ -363,7 +379,16 @@ export default function HomePage() {
   const [rec, setRec] = useState(null);
 
   // ── Computed values ──────────────────────────────────────────────────────────
-  const total    = (parseInt(rwScore) || 0) + (parseInt(mathScore) || 0);
+  const isACT = testType === 'ACT';
+
+  const actCompositeNum = (() => {
+    const e = parseInt(actEnglish), m = parseInt(actMath), r = parseInt(actReading), s = parseInt(actScience);
+    if (e > 0 && m > 0 && r > 0 && s > 0) return Math.round((e + m + r + s) / 4);
+    return 0;
+  })();
+
+  const satTotal = (parseInt(rwScore) || 0) + (parseInt(mathScore) || 0);
+  const total    = isACT ? actCompositeNum : satTotal;
   const totalStr = total > 0 ? String(total) : '';
   const gap      = targetScore && total > 0 ? parseInt(targetScore) - total : null;
 
@@ -374,6 +399,11 @@ export default function HomePage() {
     if (price > 0 && hours > 0) return `$${Math.round(price / hours)}/hr`;
     return '';
   })();
+
+  // Reset target score when switching test type
+  useEffect(() => {
+    setTargetScore(isACT ? '30' : '1400');
+  }, [isACT]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-calc weeks from test date
   useEffect(() => {
@@ -407,8 +437,17 @@ export default function HomePage() {
     if (data.studentName) { setStudentName(data.studentName); highlighted.push('studentName'); }
     if (data.grade)       { setGrade(data.grade);             highlighted.push('grade'); }
     if (data.testType)    { setTestType(data.testType);       highlighted.push('testType'); }
-    if (data.rwScore)     { setRwScore(String(data.rwScore)); highlighted.push('rwScore'); }
-    if (data.mathScore)   { setMathScore(String(data.mathScore)); highlighted.push('mathScore'); }
+
+    if (data.testType === 'ACT') {
+      // Fill ACT section scores
+      if (data.actEnglish) { setActEnglish(String(data.actEnglish)); highlighted.push('actEnglish'); }
+      if (data.actMath)    { setActMath(String(data.actMath));       highlighted.push('actMath'); }
+      if (data.actReading) { setActReading(String(data.actReading)); highlighted.push('actReading'); }
+      if (data.actScience) { setActScience(String(data.actScience)); highlighted.push('actScience'); }
+    } else {
+      if (data.rwScore)   { setRwScore(String(data.rwScore));     highlighted.push('rwScore'); }
+      if (data.mathScore) { setMathScore(String(data.mathScore)); highlighted.push('mathScore'); }
+    }
 
     // Normalize and fill all domain bands
     if (data.domains) {
@@ -463,14 +502,19 @@ export default function HomePage() {
       studentName: studentName || 'Student',
       grade,
       testType,
-      rwScore:      parseInt(rwScore) || null,
-      mathScore:    parseInt(mathScore) || null,
-      totalScore:   total || null,
-      targetScore:  parseInt(targetScore) || 1400,
+      rwScore:    isACT ? null : (parseInt(rwScore)   || null),
+      mathScore:  isACT ? null : (parseInt(mathScore) || null),
+      totalScore: total || null,
+      targetScore:  parseInt(targetScore) || (isACT ? 30 : 1400),
       targetTestDate: targetDate || '',
       targetColleges: colleges,
       studentLocation: studentState,
-      domains,
+      domains: isACT ? {
+        actEnglish: parseInt(actEnglish) || null,
+        actMath:    parseInt(actMath)    || null,
+        actReading: parseInt(actReading) || null,
+        actScience: parseInt(actScience) || null,
+      } : domains,
       totalHours:       parseInt(totalHours) || 20,
       sessionsPerWeek:  parseInt(sessionsPerWeek) || 2,
       sessionLength,
@@ -586,7 +630,7 @@ export default function HomePage() {
         <div style={{ maxWidth: 860, margin: '0 auto', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ fontWeight: 900, fontSize: 22, letterSpacing: 2, color: '#7FB3D8' }}>STUDYCORE</div>
           <div style={{ width: 1, height: 28, background: '#ffffff33' }} />
-          <div style={{ fontSize: 16, color: '#d0dce8', fontWeight: 500 }}>SAT Game Plan Generator</div>
+          <div style={{ fontSize: 16, color: '#d0dce8', fontWeight: 500 }}>Game Plan Generator</div>
           <div style={{ marginLeft: 'auto', fontSize: 12, color: '#7FB3D8', fontStyle: 'italic' }}>For Sales Reps Only</div>
         </div>
       </div>
@@ -624,32 +668,57 @@ export default function HomePage() {
               <Select value={grade} onChange={setGrade} options={['9th','10th','11th','12th']} highlight={hl('grade')} />
             </Field>
             <Field label="Test Type">
-              <Select value={testType} onChange={setTestType} options={['SAT','PSAT','PSAT 10','PSAT/NMSQT','Practice Test']} highlight={hl('testType')} />
+              <Select value={testType} onChange={setTestType} options={['SAT','ACT','PSAT','PSAT 10','PSAT/NMSQT','Practice Test']} highlight={hl('testType')} />
             </Field>
-            <Field label="R/W Score">
-              <Input type="number" value={rwScore} onChange={setRwScore} placeholder="200–800" min="200" max="800" highlight={hl('rwScore')} />
-            </Field>
-            <Field label="Math Score">
-              <Input type="number" value={mathScore} onChange={setMathScore} placeholder="200–800" min="200" max="800" highlight={hl('mathScore')} />
-            </Field>
-            <Field label="Total Score" hint="Auto-calculated">
-              <Input value={totalStr} onChange={() => {}} placeholder="—" style={{ background: '#f7fafd', color: '#555' }} />
-            </Field>
-            <Field label="Target Score">
-              <Input type="number" value={targetScore} onChange={setTargetScore} placeholder="1400" min="400" max="1600" />
-            </Field>
+            {isACT ? (
+              <>
+                <Field label="English Score">
+                  <Input type="number" value={actEnglish} onChange={setActEnglish} placeholder="1–36" min="1" max="36" highlight={hl('actEnglish')} />
+                </Field>
+                <Field label="Math Score">
+                  <Input type="number" value={actMath} onChange={setActMath} placeholder="1–36" min="1" max="36" highlight={hl('actMath')} />
+                </Field>
+                <Field label="Reading Score">
+                  <Input type="number" value={actReading} onChange={setActReading} placeholder="1–36" min="1" max="36" highlight={hl('actReading')} />
+                </Field>
+                <Field label="Science Score">
+                  <Input type="number" value={actScience} onChange={setActScience} placeholder="1–36" min="1" max="36" highlight={hl('actScience')} />
+                </Field>
+                <Field label="ACT Composite" hint="Auto-calculated (avg of 4 sections, rounded)">
+                  <Input value={totalStr} onChange={() => {}} placeholder="—" style={{ background: '#f7fafd', color: '#555' }} />
+                </Field>
+                <Field label="Target Composite">
+                  <Input type="number" value={targetScore} onChange={setTargetScore} placeholder="30" min="1" max="36" />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field label="R/W Score">
+                  <Input type="number" value={rwScore} onChange={setRwScore} placeholder="200–800" min="200" max="800" highlight={hl('rwScore')} />
+                </Field>
+                <Field label="Math Score">
+                  <Input type="number" value={mathScore} onChange={setMathScore} placeholder="200–800" min="200" max="800" highlight={hl('mathScore')} />
+                </Field>
+                <Field label="Total Score" hint="Auto-calculated">
+                  <Input value={totalStr} onChange={() => {}} placeholder="—" style={{ background: '#f7fafd', color: '#555' }} />
+                </Field>
+                <Field label="Target Score">
+                  <Input type="number" value={targetScore} onChange={setTargetScore} placeholder="1400" min="400" max="1600" />
+                </Field>
+              </>
+            )}
           </div>
 
           {/* Gap indicator */}
           {gap !== null && (
             <div style={{
-              background: '#f7fafd', border: `1px solid ${gapColor(gap)}44`,
-              borderLeft: `4px solid ${gapColor(gap)}`,
+              background: '#f7fafd', border: `1px solid ${gapColor(gap, isACT)}44`,
+              borderLeft: `4px solid ${gapColor(gap, isACT)}`,
               borderRadius: 6, padding: '10px 14px', marginTop: 4, marginBottom: 16,
               display: 'flex', alignItems: 'center', gap: 10,
             }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: gapColor(gap) }}>{gapLabel(gap)}</span>
-              {gap > 0 && <span style={{ fontSize: 13, color: '#666' }}>— {gap}-point gap</span>}
+              <span style={{ fontSize: 14, fontWeight: 700, color: gapColor(gap, isACT) }}>{gapLabel(gap, isACT)}</span>
+              {gap > 0 && <span style={{ fontSize: 13, color: '#666' }}>— {gap}{isACT ? '-point composite gap' : '-point gap'}</span>}
             </div>
           )}
 
@@ -717,45 +786,66 @@ export default function HomePage() {
         </SectionCard>
 
         {/* Section 2: Domain Performance */}
-        <SectionCard number="2" title="Domain Performance">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px' }}>
-            {/* R/W */}
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 13, color: STYLES.blue, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Reading &amp; Writing
-              </div>
-              <Field label="Craft & Structure (C&S)">
-                <Select value={domains.cs} onChange={v => setDomains(p => ({ ...p, cs: v }))} options={domainOptions} highlight={hl('domain_cs')} />
-              </Field>
-              <Field label="Information & Ideas (I&I)">
-                <Select value={domains.ii} onChange={v => setDomains(p => ({ ...p, ii: v }))} options={domainOptions} highlight={hl('domain_ii')} />
-              </Field>
-              <Field label="Expression of Ideas (EoI)">
-                <Select value={domains.eoi} onChange={v => setDomains(p => ({ ...p, eoi: v }))} options={domainOptions} highlight={hl('domain_eoi')} />
-              </Field>
-              <Field label="Standard English Conventions (SEC)">
-                <Select value={domains.sec} onChange={v => setDomains(p => ({ ...p, sec: v }))} options={domainOptions} highlight={hl('domain_sec')} />
-              </Field>
+        <SectionCard number="2" title={isACT ? 'ACT Section Scores' : 'Domain Performance'}>
+          {isACT ? (
+            <div style={{ background: '#eaf3fb', border: `1px solid ${STYLES.blue}`, borderRadius: 6, padding: '14px 18px', fontSize: 13, color: '#444' }}>
+              <strong style={{ color: STYLES.navy }}>ACT:</strong> Section scores entered in Section 1 (English, Math, Reading, Science) are used as the full diagnostic breakdown. No additional domain bands are needed — Claude analyzes each section score directly.
+              {total > 0 && (
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                  {[
+                    { label: 'English', val: actEnglish },
+                    { label: 'Math', val: actMath },
+                    { label: 'Reading', val: actReading },
+                    { label: 'Science', val: actScience },
+                  ].map(({ label, val }) => val ? (
+                    <div key={label} style={{ background: 'white', border: `1px solid ${STYLES.blue}33`, borderRadius: 6, padding: '8px 12px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: STYLES.navy, letterSpacing: 0.3, textTransform: 'uppercase' }}>{label}</div>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: STYLES.navy }}>{val}<span style={{ fontSize: 12, color: '#888', fontWeight: 500 }}>/36</span></div>
+                    </div>
+                  ) : null)}
+                </div>
+              )}
             </div>
-            {/* Math */}
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 13, color: STYLES.blue, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Math
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px' }}>
+              {/* R/W */}
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: STYLES.blue, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Reading &amp; Writing
+                </div>
+                <Field label="Craft & Structure (C&S)">
+                  <Select value={domains.cs} onChange={v => setDomains(p => ({ ...p, cs: v }))} options={domainOptions} highlight={hl('domain_cs')} />
+                </Field>
+                <Field label="Information & Ideas (I&I)">
+                  <Select value={domains.ii} onChange={v => setDomains(p => ({ ...p, ii: v }))} options={domainOptions} highlight={hl('domain_ii')} />
+                </Field>
+                <Field label="Expression of Ideas (EoI)">
+                  <Select value={domains.eoi} onChange={v => setDomains(p => ({ ...p, eoi: v }))} options={domainOptions} highlight={hl('domain_eoi')} />
+                </Field>
+                <Field label="Standard English Conventions (SEC)">
+                  <Select value={domains.sec} onChange={v => setDomains(p => ({ ...p, sec: v }))} options={domainOptions} highlight={hl('domain_sec')} />
+                </Field>
               </div>
-              <Field label="Algebra">
-                <Select value={domains.alg} onChange={v => setDomains(p => ({ ...p, alg: v }))} options={domainOptions} highlight={hl('domain_alg')} />
-              </Field>
-              <Field label="Advanced Math (AM)">
-                <Select value={domains.am} onChange={v => setDomains(p => ({ ...p, am: v }))} options={domainOptions} highlight={hl('domain_am')} />
-              </Field>
-              <Field label="Problem-Solving & Data Analysis (PSDA)">
-                <Select value={domains.psda} onChange={v => setDomains(p => ({ ...p, psda: v }))} options={domainOptions} highlight={hl('domain_psda')} />
-              </Field>
-              <Field label="Geometry & Trigonometry (G&T)">
-                <Select value={domains.gt} onChange={v => setDomains(p => ({ ...p, gt: v }))} options={domainOptions} highlight={hl('domain_gt')} />
-              </Field>
+              {/* Math */}
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: STYLES.blue, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Math
+                </div>
+                <Field label="Algebra">
+                  <Select value={domains.alg} onChange={v => setDomains(p => ({ ...p, alg: v }))} options={domainOptions} highlight={hl('domain_alg')} />
+                </Field>
+                <Field label="Advanced Math (AM)">
+                  <Select value={domains.am} onChange={v => setDomains(p => ({ ...p, am: v }))} options={domainOptions} highlight={hl('domain_am')} />
+                </Field>
+                <Field label="Problem-Solving & Data Analysis (PSDA)">
+                  <Select value={domains.psda} onChange={v => setDomains(p => ({ ...p, psda: v }))} options={domainOptions} highlight={hl('domain_psda')} />
+                </Field>
+                <Field label="Geometry & Trigonometry (G&T)">
+                  <Select value={domains.gt} onChange={v => setDomains(p => ({ ...p, gt: v }))} options={domainOptions} highlight={hl('domain_gt')} />
+                </Field>
+              </div>
             </div>
-          </div>
+          )}
         </SectionCard>
 
         {/* Section 3: Program Structure */}
@@ -943,7 +1033,7 @@ export default function HomePage() {
               </button>
               {downloads.presentation && (
                 <button
-                  onClick={() => downloadFile(downloads.presentation, `${downloads.name}_SAT_GamePlan_Presentation.pdf`)}
+                  onClick={() => downloadFile(downloads.presentation, `${downloads.name}_${isACT ? 'ACT' : 'SAT'}_GamePlan_Presentation.pdf`)}
                   style={{
                     background: '#FF6B5A', color: '#fff', border: 'none', borderRadius: 6,
                     padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
