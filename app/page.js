@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getRecommendation, weeksUntilDate, SAT_TEST_DATES, PERFORMANCE_BANDS, STATE_COLLEGES, parseStateFromLocation } from '../lib/recommend';
+import { getRecommendation, weeksUntilDate, SAT_TEST_DATES, ACT_TEST_DATES, PERFORMANCE_BANDS, STATE_COLLEGES, parseStateFromLocation } from '../lib/recommend';
 
 // ─── Band normalization ────────────────────────────────────────────────────────
 // Maps whatever Claude Vision returns → exact dropdown option
@@ -400,9 +400,10 @@ export default function HomePage() {
     return '';
   })();
 
-  // Reset target score when switching test type
+  // Reset target score and date when switching test type
   useEffect(() => {
     setTargetScore(isACT ? '30' : '1400');
+    setTargetDate('');
   }, [isACT]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-calc weeks from test date
@@ -727,7 +728,7 @@ export default function HomePage() {
               <Select
                 value={targetDate}
                 onChange={setTargetDate}
-                options={[{ label: '— Select date —', value: '' }, ...SAT_TEST_DATES]}
+                options={[{ label: '— Select date —', value: '' }, ...(isACT ? ACT_TEST_DATES : SAT_TEST_DATES)]}
               />
             </Field>
             <Field label="Student Location" hint="City/State — auto-filled from score report">
