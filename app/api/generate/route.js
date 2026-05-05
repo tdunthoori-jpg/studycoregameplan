@@ -25,7 +25,6 @@ export async function POST(request) {
         // ── Validate ────────────────────────────────────────────────────────────
         if (!apiKey) {
           line(controller, { status: 'error', error: 'ANTHROPIC_API_KEY is not set on the server. Add it in Vercel → Settings → Environment Variables.' });
-          controller.close();
           return;
         }
 
@@ -34,7 +33,6 @@ export async function POST(request) {
           studentData = await request.json();
         } catch {
           line(controller, { status: 'error', error: 'Invalid request body.' });
-          controller.close();
           return;
         }
 
@@ -75,7 +73,6 @@ export async function POST(request) {
             status: 'error',
             error: `Cannot generate — the following required fields are missing:\n• ${missingFields.join('\n• ')}`,
           });
-          controller.close();
           return;
         }
 
@@ -130,7 +127,6 @@ export async function POST(request) {
             ? ' — Rate limit hit; wait a moment and try again.'
             : '';
           line(controller, { status: 'error', error: `Claude API error: ${msg}${hint}` });
-          controller.close();
           return;
         }
         clearInterval(heartbeat);
@@ -138,12 +134,10 @@ export async function POST(request) {
         // Check for truncation in either response
         if (gamePlanMsg.stop_reason === 'max_tokens') {
           line(controller, { status: 'error', error: 'Game plan response was cut off. Try reducing the number of weeks, then generate again.' });
-          controller.close();
           return;
         }
         if (scriptMsg.stop_reason === 'max_tokens') {
           line(controller, { status: 'error', error: 'Meeting script response was cut off. Try generating again.' });
-          controller.close();
           return;
         }
 
@@ -203,13 +197,11 @@ export async function POST(request) {
           gamePlan = parseJson(gamePlanMsg.content[0].text, 'Game plan');
         } catch (err) {
           line(controller, { status: 'error', error: `Game plan parse error: ${err.message}. Try generating again.` });
-          controller.close();
           return;
         }
 
         if (!gamePlan) {
           line(controller, { status: 'error', error: 'Claude response missing game plan data.' });
-          controller.close();
           return;
         }
 
@@ -229,7 +221,6 @@ export async function POST(request) {
           ]);
         } catch (err) {
           line(controller, { status: 'error', error: `Document build error: ${err.message}` });
-          controller.close();
           return;
         }
 
