@@ -334,6 +334,7 @@ export default function HomePage() {
   const [mathScore, setMathScore]     = useState('');
   const [targetScore, setTargetScore] = useState('1400');
   const [targetDate, setTargetDate]   = useState('');
+  const [isCustomDate, setIsCustomDate] = useState(false);
   const [colleges, setColleges]       = useState('');
   const [studentState, setStudentState] = useState('');
   const [collegeSuggestions, setCollegeSuggestions] = useState([]);
@@ -726,10 +727,37 @@ export default function HomePage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
             <Field label="Target Test Date">
               <Select
-                value={targetDate}
-                onChange={setTargetDate}
-                options={[{ label: '— Select date —', value: '' }, ...(isACT ? ACT_TEST_DATES : SAT_TEST_DATES)]}
+                value={isCustomDate ? '__custom__' : targetDate}
+                onChange={v => {
+                  if (v === '__custom__') {
+                    setIsCustomDate(true);
+                    setTargetDate('');
+                  } else {
+                    setIsCustomDate(false);
+                    setTargetDate(v);
+                  }
+                }}
+                options={[
+                  { label: '— Select date —', value: '' },
+                  ...(isACT ? ACT_TEST_DATES : SAT_TEST_DATES),
+                  { label: 'Custom date...', value: '__custom__' },
+                ]}
               />
+              {isCustomDate && (
+                <input
+                  type="date"
+                  value={targetDate}
+                  onChange={e => setTargetDate(e.target.value)}
+                  min="2026-01-01"
+                  max="2030-12-31"
+                  style={{
+                    marginTop: 8, width: '100%', padding: '10px 12px',
+                    border: '1.5px solid #CBD5E1', borderRadius: 8,
+                    fontSize: 15, fontFamily: 'inherit', color: '#1B3A5C',
+                    background: 'white', outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              )}
             </Field>
             <Field label="Student Location" hint="City/State — auto-filled from score report">
               <Input
