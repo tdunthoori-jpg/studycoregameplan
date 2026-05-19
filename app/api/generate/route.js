@@ -106,7 +106,7 @@ export async function POST(request) {
           [gamePlanMsg, scriptMsg] = await Promise.all([
             client.messages.create({
               model: 'claude-sonnet-4-6',
-              max_tokens: 16000,
+              max_tokens: 64000,
               system: gamePlanSystemPrompt,
               messages: [{ role: 'user', content: gamePlanPrompt }],
             }),
