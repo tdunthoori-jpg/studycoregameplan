@@ -107,6 +107,7 @@ export async function POST(request) {
             client.messages.create({
               model: 'claude-sonnet-4-6',
               max_tokens: 64000,
+              temperature: 0,
               system: gamePlanSystemPrompt,
               messages: [{ role: 'user', content: gamePlanPrompt }],
             }),
