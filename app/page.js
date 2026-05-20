@@ -565,7 +565,7 @@ export default function HomePage() {
           } else if (msg.status === 'building') {
             setGenStatus(msg.message || 'Building .docx files…');
           } else if (msg.status === 'done') {
-            setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, presentation: msg.presentationBase64, pptx: msg.pptxBase64, name: msg.studentName });
+            setDownloads({ gamePlan: msg.gamePlanBase64, presentation: msg.presentationBase64, pptx: msg.pptxBase64, name: msg.studentName });
             setGenStatus('');
             return;
           } else if (msg.status === 'error') {
@@ -580,7 +580,7 @@ export default function HomePage() {
         let msg;
         try { msg = JSON.parse(buffer); } catch { /* incomplete data */ }
         if (msg?.status === 'done') {
-          setDownloads({ gamePlan: msg.gamePlanBase64, script: msg.scriptBase64, presentation: msg.presentationBase64, pptx: msg.pptxBase64, name: msg.studentName });
+          setDownloads({ gamePlan: msg.gamePlanBase64, presentation: msg.presentationBase64, pptx: msg.pptxBase64, name: msg.studentName });
           setGenStatus('');
           return;
         } else if (msg?.status === 'error') {
@@ -934,56 +934,6 @@ export default function HomePage() {
           </Field>
         </SectionCard>
 
-        {/* Section 5: Pricing & Guarantee */}
-        <SectionCard number="5" title="Pricing & Guarantee (Optional — for Meeting Script)">
-          <div style={{ fontSize: 13, color: '#666', marginBottom: 16, fontStyle: 'italic' }}>
-            Leave blank to skip the pricing section in the script. If filled in, the script will include the full close with exact dollar amounts, value comparison, and urgency framing.
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
-            <Field label="Total Program Price" hint='e.g. $2,000 or $3,200'>
-              <Input
-                value={programPrice}
-                onChange={setProgramPrice}
-                placeholder="e.g. $2,000"
-              />
-            </Field>
-            <Field label="Per-Hour Rate" hint="Auto-calculated from price ÷ hours">
-              <Input
-                value={perHourRate}
-                onChange={() => {}}
-                placeholder="—"
-                style={{ background: '#f7fafd', color: perHourRate ? STYLES.navy : '#aaa', fontWeight: perHourRate ? 700 : 400 }}
-              />
-            </Field>
-            <Field label="Score Guarantee Threshold" hint='e.g. 1400+ or 1100+'>
-              <Input
-                value={guaranteeThreshold}
-                onChange={setGuaranteeThreshold}
-                placeholder="e.g. 1400+"
-              />
-            </Field>
-            <Field label="Payment Structure" hint='e.g. Full upfront · or: $1,600 / $1,600'>
-              <Input
-                value={paymentStructure}
-                onChange={setPaymentStructure}
-                placeholder="e.g. Full upfront"
-              />
-            </Field>
-          </div>
-          {programPrice && perHourRate && (
-            <div style={{
-              background: '#eaf3fb', border: `1px solid ${STYLES.blue}`,
-              borderLeft: `4px solid ${STYLES.blue}`,
-              borderRadius: 6, padding: '10px 14px', marginTop: 4,
-              fontSize: 13, color: STYLES.navy,
-            }}>
-              💰 <strong>{programPrice}</strong> total &nbsp;·&nbsp; <strong>{perHourRate}</strong> &nbsp;·&nbsp;
-              {guaranteeThreshold && <><strong>{guaranteeThreshold}</strong> guarantee &nbsp;·&nbsp;</>}
-              Script will include full pricing close + objection handlers
-            </div>
-          )}
-        </SectionCard>
-
         {/* Generate Button */}
         <button
           onClick={handleGenerate}
@@ -1013,7 +963,7 @@ export default function HomePage() {
               <span>{genStatus || 'Starting…'}</span>
             </>
           ) : (
-            '⚡ Generate Game Plan + Meeting Script + Presentation'
+            '⚡ Generate Game Plan + Presentation'
           )}
         </button>
 
@@ -1049,16 +999,6 @@ export default function HomePage() {
                 }}
               >
                 📋 Download Game Plan (.pdf)
-              </button>
-              <button
-                onClick={() => downloadFile(downloads.script, `${downloads.name}_MeetingScript.pdf`)}
-                style={{
-                  background: STYLES.blue, color: '#fff', border: 'none', borderRadius: 6,
-                  padding: '11px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}
-              >
-                🎤 Download Meeting Script (.pdf)
               </button>
               {downloads.presentation && (
                 <button

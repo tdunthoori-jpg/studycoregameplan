@@ -1,10 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  GAME_PLAN_SYSTEM_PROMPT, MEETING_SCRIPT_SYSTEM_PROMPT, buildGenerationPrompt, buildGamePlanPrompt,
-  ACT_GAME_PLAN_SYSTEM_PROMPT, ACT_MEETING_SCRIPT_SYSTEM_PROMPT, buildACTGamePlanPrompt, buildACTGenerationPrompt,
+  GAME_PLAN_SYSTEM_PROMPT, buildGamePlanPrompt,
+  ACT_GAME_PLAN_SYSTEM_PROMPT, buildACTGamePlanPrompt,
 } from '../../../lib/prompts';
 import { buildGamePlanPdf } from '../../../lib/pdf-game-plan';
-import { buildMeetingScriptPdf } from '../../../lib/pdf-script';
 import { buildPresentationBoth } from '../../../lib/pdf-presentation';
 
 export const maxDuration = 300;
@@ -76,23 +75,15 @@ export async function POST(request) {
           return;
         }
 
-        // Pricing is optional — script will omit Section 7 if blank (no error)
-
         // Send immediate heartbeat so the connection isn't dropped
         line(controller, { status: 'generating', message: 'Calling Claude Sonnet — this takes 30–90 seconds…' });
 
         const client = new Anthropic({ apiKey });
 
-        // Route to ACT or SAT prompts
-        const gamePlanSystemPrompt = isACT ? ACT_GAME_PLAN_SYSTEM_PROMPT   : GAME_PLAN_SYSTEM_PROMPT;
-        const scriptSystemPrompt   = isACT ? ACT_MEETING_SCRIPT_SYSTEM_PROMPT : MEETING_SCRIPT_SYSTEM_PROMPT;
-        const gamePlanPrompt       = isACT ? buildACTGamePlanPrompt(studentData)   : buildGamePlanPrompt(studentData);
-        const scriptPrompt         = isACT ? buildACTGenerationPrompt(studentData) : buildGenerationPrompt(studentData);
+        const gamePlanSystemPrompt = isACT ? ACT_GAME_PLAN_SYSTEM_PROMPT : GAME_PLAN_SYSTEM_PROMPT;
+        const gamePlanPrompt       = isACT ? buildACTGamePlanPrompt(studentData) : buildGamePlanPrompt(studentData);
 
-        // ── Step 1: Call Claude twice in parallel (game plan + meeting script) ─
-        // Running in parallel halves the wait time and keeps each response
-        // well within token limits regardless of plan length.
-        line(controller, { status: 'generating', message: 'Building game plan and meeting script in parallel…' });
+        line(controller, { status: 'generating', message: 'Building game plan…' });
 
         // Heartbeat every 12 seconds so Vercel doesn't drop the connection
         let elapsed = 0;
@@ -101,24 +92,15 @@ export async function POST(request) {
           line(controller, { status: 'generating', message: `Claude is working… (${elapsed}s)` });
         }, 12000);
 
-        let gamePlanMsg, scriptMsg;
+        let gamePlanMsg;
         try {
-          [gamePlanMsg, scriptMsg] = await Promise.all([
-            client.messages.create({
-              model: 'claude-sonnet-4-6',
-              max_tokens: 64000,
-              temperature: 0,
-              system: gamePlanSystemPrompt,
-              messages: [{ role: 'user', content: gamePlanPrompt }],
-            }),
-            client.messages.create({
-              model: 'claude-sonnet-4-6',
-              max_tokens: 16000,
-              temperature: 0.3,
-              system: scriptSystemPrompt,
-              messages: [{ role: 'user', content: scriptPrompt }],
-            }),
-          ]);
+          gamePlanMsg = await client.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 64000,
+            temperature: 0,
+            system: gamePlanSystemPrompt,
+            messages: [{ role: 'user', content: gamePlanPrompt }],
+          });
         } catch (err) {
           clearInterval(heartbeat);
           const msg = err?.message ?? 'Unknown Anthropic API error';
@@ -132,24 +114,14 @@ export async function POST(request) {
         }
         clearInterval(heartbeat);
 
-        // Check for truncation in either response
         if (gamePlanMsg.stop_reason === 'max_tokens') {
           line(controller, { status: 'error', error: 'Game plan response was cut off. Try reducing the number of weeks, then generate again.' });
           return;
         }
-        if (scriptMsg.stop_reason === 'max_tokens') {
-          line(controller, { status: 'error', error: 'Meeting script response was cut off. Try generating again.' });
-          return;
-        }
 
-        // ── Step 2: Parse game plan JSON; meeting script is raw markdown ───────
+        // ── Step 2: Parse game plan JSON ─────────────────────────────────────────
 
-        // Fix the most common ways Claude produces malformed JSON:
-        // 1. Literal (unescaped) newlines / tabs / carriage-returns inside strings
-        // 2. Trailing commas before } or ]
-        // 3. Curly/smart quotes instead of straight ASCII quotes
         function repairJson(str) {
-          // Pass 1: walk character-by-character to escape control chars inside strings
           let inString = false;
           let escaped  = false;
           let out      = '';
@@ -162,33 +134,29 @@ export async function POST(request) {
               if      (ch === '\n') { out += '\\n';  continue; }
               else if (ch === '\r') { out += '\\r';  continue; }
               else if (ch === '\t') { out += '\\t';  continue; }
-              // Replace smart/curly quotes that occasionally appear in strings
               else if (ch === '“' || ch === '”') { out += '"'; continue; }
               else if (ch === '‘' || ch === '’') { out += "'"; continue; }
             }
             out += ch;
           }
-          // Pass 2: strip trailing commas before } or ]
           return out.replace(/,(\s*[}\]])/g, '$1');
         }
 
         function parseJson(rawText, label) {
           let clean = rawText.trim();
-          // Strip markdown code fences
           if (clean.startsWith('```')) {
             clean = clean.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
           }
           const match = clean.match(/\{[\s\S]*\}/);
           if (!match) throw new Error(`${label}: no JSON object found in response`);
           const jsonStr = match[0];
-          // First try straight parse; on failure, attempt repair then retry
           try {
             return JSON.parse(jsonStr);
           } catch (firstErr) {
             try {
               return JSON.parse(repairJson(jsonStr));
             } catch {
-              throw firstErr; // surface the original error message
+              throw firstErr;
             }
           }
         }
@@ -206,20 +174,15 @@ export async function POST(request) {
           return;
         }
 
-        // Meeting script is markdown text — use directly
-        const meetingScriptMarkdown = scriptMsg.content[0].text.trim();
-
         // ── Step 3: Build PDFs ─────────────────────────────────────────────────
         line(controller, { status: 'building', message: 'Building PDF files…' });
 
         const studentName = studentData.studentName || 'Student';
-        let gamePlanBuffer, scriptBuffer, presentationBuffer, pptxBuffer;
+        let gamePlanBuffer, presentationBuffer, pptxBuffer;
         try {
-          // buildPresentationBoth shares one Chromium instance for PDF + PPTX
           let presResult;
-          [gamePlanBuffer, scriptBuffer, presResult] = await Promise.all([
+          [gamePlanBuffer, presResult] = await Promise.all([
             buildGamePlanPdf(gamePlan, studentName),
-            buildMeetingScriptPdf(meetingScriptMarkdown, studentName),
             buildPresentationBoth(gamePlan, studentData, studentName),
           ]);
           presentationBuffer = presResult.pdfBuffer;
@@ -232,15 +195,13 @@ export async function POST(request) {
         // ── Step 4: Send result ────────────────────────────────────────────────
         line(controller, {
           status: 'done',
-          gamePlanBase64:      Buffer.from(gamePlanBuffer).toString('base64'),
-          scriptBase64:        Buffer.from(scriptBuffer).toString('base64'),
-          presentationBase64:  Buffer.from(presentationBuffer).toString('base64'),
-          pptxBase64:          Buffer.from(pptxBuffer).toString('base64'),
+          gamePlanBase64:     Buffer.from(gamePlanBuffer).toString('base64'),
+          presentationBase64: Buffer.from(presentationBuffer).toString('base64'),
+          pptxBase64:         Buffer.from(pptxBuffer).toString('base64'),
           studentName,
         });
 
       } catch (err) {
-        // Catch-all for any unhandled errors
         try {
           line(controller, { status: 'error', error: `Unexpected error: ${err?.message ?? String(err)}` });
         } catch {}
@@ -254,7 +215,7 @@ export async function POST(request) {
     headers: {
       'Content-Type': 'application/x-ndjson',
       'Cache-Control': 'no-cache',
-      'X-Accel-Buffering': 'no', // Disable nginx buffering for streaming
+      'X-Accel-Buffering': 'no',
     },
   });
 }
