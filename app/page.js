@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getRecommendation, weeksUntilDate, SAT_TEST_DATES, ACT_TEST_DATES, PERFORMANCE_BANDS, STATE_COLLEGES, parseStateFromLocation } from '../lib/recommend';
+import { getRecommendation, weeksUntilDate, SAT_TEST_DATES, ACT_TEST_DATES, PERFORMANCE_BANDS, parseStateFromLocation } from '../lib/recommend';
 
 // ─── Band normalization ────────────────────────────────────────────────────────
 // Maps whatever Claude Vision returns → exact dropdown option
@@ -321,6 +321,131 @@ function Spinner() {
   );
 }
 
+// ─── College list (matches pdf-presentation.js _satDb) ────────────────────────
+
+const ALL_COLLEGES = [
+  'American University', 'Arizona State', 'Auburn University', 'Baylor University',
+  'Boston University', 'Brown', 'Caltech', 'Carnegie Mellon', 'Clemson University',
+  'Columbia', 'Cornell', 'Dartmouth', 'DePaul', 'Drexel', 'Duke', 'Emory',
+  'Florida International University', 'Florida State University', 'Fordham',
+  'Georgetown', 'Georgia Tech', 'Gonzaga', 'Harvard', 'Indiana University',
+  'Johns Hopkins', 'Loyola', 'Michigan State University', 'MIT', 'NC State University',
+  'Northeastern', 'Northwestern', 'Notre Dame', 'NYU', 'Ohio State University',
+  'Penn', 'Penn State', 'Princeton', 'Purdue University', 'Rice',
+  'Rutgers University', 'Santa Clara University', 'SMU', 'Stanford', 'TCU',
+  'Temple', 'Texas A&M University', 'Tufts', 'Tulane', 'UC Berkeley', 'UCLA',
+  'University of Alabama', 'University of Arizona', 'University of Central Florida',
+  'University of Colorado Boulder', 'University of Connecticut', 'University of Denver',
+  'University of Florida', 'University of Georgia',
+  'University of Illinois Urbana-Champaign', 'University of Maryland',
+  'University of Miami', 'University of Michigan', 'University of North Carolina',
+  'University of Oregon', 'University of Pittsburgh', 'University of Richmond',
+  'University of San Diego', 'University of South Florida', 'University of Tennessee',
+  'University of Texas at Austin', 'University of Virginia', 'University of Washington',
+  'University of Wisconsin-Madison', 'USC', 'Vanderbilt', 'Villanova',
+  'Virginia Tech', 'Wake Forest', 'Yale',
+].sort();
+
+// ─── Searchable multi-select for colleges ──────────────────────────────────────
+
+function CollegeSelect({ selected, onChange }) {
+  const [search, setSearch]   = useState('');
+  const [open, setOpen]       = useState(false);
+  const containerRef          = useRef(null);
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  const filtered = ALL_COLLEGES
+    .filter(c => !selected.includes(c) && c.toLowerCase().includes(search.toLowerCase()))
+    .slice(0, 10);
+
+  function add(college) {
+    if (!selected.includes(college) && selected.length < 5) {
+      onChange([...selected, college]);
+      setSearch('');
+    }
+  }
+
+  function remove(college) {
+    onChange(selected.filter(c => c !== college));
+  }
+
+  const atMax = selected.length >= 5;
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {selected.map(c => (
+            <span key={c} style={{
+              background: '#eaf3fb', border: `1px solid ${STYLES.blue}`,
+              borderRadius: 20, padding: '4px 8px 4px 12px',
+              fontSize: 13, color: STYLES.blue, fontWeight: 600,
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+            }}>
+              {c}
+              <button
+                onClick={() => remove(c)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: STYLES.blue, fontSize: 16, padding: '0 2px',
+                  lineHeight: 1, fontWeight: 700, opacity: 0.7,
+                }}
+              >×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        type="text"
+        value={search}
+        onChange={e => { setSearch(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && filtered.length > 0) { e.preventDefault(); add(filtered[0]); }
+          if (e.key === 'Escape') setOpen(false);
+        }}
+        placeholder={atMax ? 'Max 5 colleges selected' : 'Search and select colleges…'}
+        disabled={atMax}
+        style={{
+          ...inputStyle,
+          ...(atMax ? { background: '#f5f5f5', color: '#aaa', cursor: 'not-allowed' } : {}),
+        }}
+      />
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          background: '#fff', border: '1px solid #ccd6e0', borderTop: 'none',
+          borderRadius: '0 0 5px 5px', boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
+          maxHeight: 260, overflowY: 'auto',
+        }}>
+          {filtered.map((c, i) => (
+            <div
+              key={c}
+              onMouseDown={e => { e.preventDefault(); add(c); }}
+              style={{
+                padding: '9px 14px', fontSize: 14, cursor: 'pointer', color: '#333',
+                borderBottom: i < filtered.length - 1 ? '1px solid #f0f4f8' : 'none',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#eaf3fb'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              {c}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 const defaultDomains = { cs: '', ii: '', eoi: '', sec: '', alg: '', am: '', psda: '', gt: '' };
@@ -335,9 +460,8 @@ export default function HomePage() {
   const [targetScore, setTargetScore] = useState('1400');
   const [targetDate, setTargetDate]   = useState('');
   const [isCustomDate, setIsCustomDate] = useState(false);
-  const [colleges, setColleges]       = useState('');
+  const [colleges, setColleges]       = useState([]);
   const [studentState, setStudentState] = useState('');
-  const [collegeSuggestions, setCollegeSuggestions] = useState([]);
 
   // ACT section scores
   const [actEnglish, setActEnglish] = useState('');
@@ -463,14 +587,10 @@ export default function HomePage() {
       });
     }
 
-    // Handle location → state detection → college suggestions
+    // Handle location → state detection
     if (data.location) {
       setStudentState(data.location);
       highlighted.push('studentState');
-      const stateCode = parseStateFromLocation(data.location);
-      if (stateCode && STATE_COLLEGES[stateCode]) {
-        setCollegeSuggestions(STATE_COLLEGES[stateCode]);
-      }
     }
 
     // Accumulate additionalData across multiple reports
@@ -509,7 +629,7 @@ export default function HomePage() {
       totalScore: total || null,
       targetScore:  parseInt(targetScore) || (isACT ? 30 : 1400),
       targetTestDate: targetDate || '',
-      targetColleges: colleges,
+      targetColleges: colleges.join(', '),
       studentLocation: studentState,
       domains: isACT ? {
         actEnglish: parseInt(actEnglish) || null,
@@ -762,56 +882,16 @@ export default function HomePage() {
             <Field label="Student Location" hint="City/State — auto-filled from score report">
               <Input
                 value={studentState}
-                onChange={v => {
-                  setStudentState(v);
-                  const code = parseStateFromLocation(v);
-                  setCollegeSuggestions(code && STATE_COLLEGES[code] ? STATE_COLLEGES[code] : []);
-                }}
+                onChange={v => setStudentState(v)}
                 placeholder="e.g. Charlotte, NC"
                 highlight={hl('studentState')}
               />
             </Field>
           </div>
 
-          <Field label="Target Colleges" hint="Comma-separated — click suggestions below to add">
-            <Input value={colleges} onChange={setColleges} placeholder="e.g. UNC Chapel Hill, UVA, Wake Forest" />
+          <Field label="Target Colleges" hint="Search and select up to 5 colleges — score ranges will be shown in the presentation">
+            <CollegeSelect selected={colleges} onChange={setColleges} />
           </Field>
-
-          {/* College suggestions based on detected state */}
-          {collegeSuggestions.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: '#666', marginBottom: 6, fontStyle: 'italic' }}>
-                💡 Top colleges in {studentState} — click to add:
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {collegeSuggestions.map(c => {
-                  const alreadyAdded = colleges.toLowerCase().includes(c.toLowerCase());
-                  return (
-                    <button
-                      key={c}
-                      onClick={() => {
-                        if (alreadyAdded) return;
-                        setColleges(prev => prev ? `${prev}, ${c}` : c);
-                      }}
-                      style={{
-                        background: alreadyAdded ? '#e8f5e9' : '#eaf3fb',
-                        border: `1px solid ${alreadyAdded ? '#27AE60' : STYLES.blue}`,
-                        borderRadius: 20,
-                        padding: '4px 12px',
-                        fontSize: 12,
-                        color: alreadyAdded ? STYLES.green : STYLES.blue,
-                        cursor: alreadyAdded ? 'default' : 'pointer',
-                        fontWeight: alreadyAdded ? 700 : 400,
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {alreadyAdded ? '✓ ' : '+'} {c}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </SectionCard>
 
         {/* Section 2: Domain Performance */}
