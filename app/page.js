@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getRecommendation, weeksUntilDate, SAT_TEST_DATES, ACT_TEST_DATES, PERFORMANCE_BANDS, parseStateFromLocation } from '../lib/recommend';
+import { getRecommendation, weeksUntilDate, SAT_TEST_DATES, ACT_TEST_DATES, PSAT_TEST_DATES, PERFORMANCE_BANDS, parseStateFromLocation } from '../lib/recommend';
 
 // ─── Band normalization ────────────────────────────────────────────────────────
 // Maps whatever Claude Vision returns → exact dropdown option
@@ -454,7 +454,8 @@ export default function HomePage() {
   // Student info
   const [studentName, setStudentName] = useState('');
   const [grade, setGrade]             = useState('11th');
-  const [testType, setTestType]       = useState('SAT');
+  const [testType, setTestType]           = useState('SAT');
+  const [targetTestType, setTargetTestType] = useState('SAT');
   const [rwScore, setRwScore]         = useState('');
   const [mathScore, setMathScore]     = useState('');
   const [targetScore, setTargetScore] = useState('1400');
@@ -505,6 +506,12 @@ export default function HomePage() {
 
   // ── Computed values ──────────────────────────────────────────────────────────
   const isACT = testType === 'ACT';
+
+  const targetDateOptions = (() => {
+    if (targetTestType === 'ACT')          return ACT_TEST_DATES;
+    if (targetTestType === 'PSAT/NMSQT')  return PSAT_TEST_DATES;
+    return SAT_TEST_DATES;
+  })();
 
   const actCompositeNum = (() => {
     const e = parseInt(actEnglish), m = parseInt(actMath), r = parseInt(actReading), s = parseInt(actScience);
@@ -562,7 +569,21 @@ export default function HomePage() {
     const highlighted = [];
     if (data.studentName) { setStudentName(data.studentName); highlighted.push('studentName'); }
     if (data.grade)       { setGrade(data.grade);             highlighted.push('grade'); }
-    if (data.testType)    { setTestType(data.testType);       highlighted.push('testType'); }
+    if (data.testType) {
+      setTestType(data.testType);
+      highlighted.push('testType');
+      // Auto-set target test type: PSAT inputs → target SAT, ACT → target ACT, SAT → target SAT
+      if (data.testType === 'ACT') {
+        setTargetTestType('ACT');
+      } else if (/psat/i.test(data.testType)) {
+        setTargetTestType('SAT');
+      } else {
+        setTargetTestType('SAT');
+      }
+      // Clear the target date when test type changes so stale dates don't persist
+      setTargetDate('');
+      setIsCustomDate(false);
+    }
 
     if (data.testType === 'ACT') {
       // Fill ACT section scores
@@ -624,6 +645,7 @@ export default function HomePage() {
       studentName: studentName || 'Student',
       grade,
       testType,
+      targetTestType,
       rwScore:    isACT ? null : (parseInt(rwScore)   || null),
       mathScore:  isACT ? null : (parseInt(mathScore) || null),
       totalScore: total || null,
@@ -789,8 +811,11 @@ export default function HomePage() {
             <Field label="Grade">
               <Select value={grade} onChange={setGrade} options={['9th','10th','11th','12th']} highlight={hl('grade')} />
             </Field>
-            <Field label="Test Type">
-              <Select value={testType} onChange={setTestType} options={['SAT','ACT','PSAT','PSAT 10','PSAT/NMSQT','Practice Test']} highlight={hl('testType')} />
+            <Field label="Test Type" hint="The test on this score report">
+              <Select value={testType} onChange={v => { setTestType(v); setTargetDate(''); setIsCustomDate(false); }} options={['SAT','ACT','PSAT','PSAT 10','PSAT/NMSQT','Practice Test']} highlight={hl('testType')} />
+            </Field>
+            <Field label="Target Test" hint="The test they're prepping for">
+              <Select value={targetTestType} onChange={v => { setTargetTestType(v); setTargetDate(''); setIsCustomDate(false); }} options={['SAT','PSAT/NMSQT','ACT']} />
             </Field>
             {isACT ? (
               <>
@@ -859,7 +884,7 @@ export default function HomePage() {
                 }}
                 options={[
                   { label: '— Select date —', value: '' },
-                  ...(isACT ? ACT_TEST_DATES : SAT_TEST_DATES),
+                  ...targetDateOptions,
                   { label: 'Custom date...', value: '__custom__' },
                 ]}
               />
