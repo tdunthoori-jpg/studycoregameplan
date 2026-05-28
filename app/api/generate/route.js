@@ -85,12 +85,15 @@ export async function POST(request) {
 
         line(controller, { status: 'generating', message: 'Building game plan…' });
 
-        // Heartbeat every 12 seconds so Vercel doesn't drop the connection
+        // Heartbeat every 10 seconds for the entire request lifetime — covers both
+        // the Claude API call and the Puppeteer PDF build, either of which can exceed
+        // 30s and cause CDN/proxy to drop an idle stream.
         let elapsed = 0;
+        let heartbeatPhase = 'generating';
         const heartbeat = setInterval(() => {
-          elapsed += 12;
-          line(controller, { status: 'generating', message: `Claude is working… (${elapsed}s)` });
-        }, 12000);
+          elapsed += 10;
+          line(controller, { status: heartbeatPhase, message: `${heartbeatPhase === 'building' ? 'Building PDFs' : 'Claude is working'}… (${elapsed}s)` });
+        }, 10000);
 
         let gamePlanMsg;
         try {
@@ -112,7 +115,7 @@ export async function POST(request) {
           line(controller, { status: 'error', error: `Claude API error: ${msg}${hint}` });
           return;
         }
-        clearInterval(heartbeat);
+        // Do NOT clearInterval here — heartbeat continues through the PDF build phase
 
         if (gamePlanMsg.stop_reason === 'max_tokens') {
           line(controller, { status: 'error', error: 'Game plan response was cut off. Try reducing the number of weeks, then generate again.' });
@@ -175,6 +178,7 @@ export async function POST(request) {
         }
 
         // ── Step 3: Build PDFs ─────────────────────────────────────────────────
+        heartbeatPhase = 'building';
         line(controller, { status: 'building', message: 'Building PDF files…' });
 
         const studentName = studentData.studentName || 'Student';
@@ -188,9 +192,11 @@ export async function POST(request) {
           presentationBuffer = presResult.pdfBuffer;
           pptxBuffer         = presResult.pptxBuffer;
         } catch (err) {
+          clearInterval(heartbeat);
           line(controller, { status: 'error', error: `Document build error: ${err.message}` });
           return;
         }
+        clearInterval(heartbeat);
 
         // ── Step 4: Send result ────────────────────────────────────────────────
         line(controller, {
