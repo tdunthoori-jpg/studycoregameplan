@@ -182,7 +182,7 @@ export async function POST(request) {
         try {
           let presResult;
           [gamePlanBuffer, presResult] = await Promise.all([
-            buildGamePlanPdf(gamePlan, studentName),
+            buildGamePlanPdf(gamePlan, studentData, studentName),
             buildPresentationBoth(gamePlan, studentData, studentName),
           ]);
           presentationBuffer = presResult.pdfBuffer;
