@@ -20,6 +20,10 @@ export async function POST(request) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Declare heartbeat OUTSIDE the try block so catch/finally can access it.
+      // const inside try is block-scoped to try and invisible to catch/finally.
+      let heartbeat;
+
       try {
         // ── Validate ────────────────────────────────────────────────────────────
         if (!apiKey) {
@@ -90,7 +94,7 @@ export async function POST(request) {
         // 30s and cause CDN/proxy to drop an idle stream.
         let elapsed = 0;
         let heartbeatPhase = 'generating';
-        const heartbeat = setInterval(() => {
+        heartbeat = setInterval(() => {
           elapsed += 10;
           try {
             line(controller, { status: heartbeatPhase, message: `${heartbeatPhase === 'building' ? 'Building PDFs' : 'Claude is working'}… (${elapsed}s)` });
@@ -193,11 +197,10 @@ export async function POST(request) {
         const studentName = studentData.studentName || 'Student';
         let gamePlanBuffer, presentationBuffer, pptxBuffer;
         try {
-          let presResult;
-          [gamePlanBuffer, presResult] = await Promise.all([
-            buildGamePlanPdf(gamePlan, studentData, studentName),
-            buildPresentationBoth(gamePlan, studentData, studentName),
-          ]);
+          // Sequential — not parallel — to avoid peak memory from running
+          // Puppeteer + React PDF renderer simultaneously on Vercel.
+          gamePlanBuffer = await buildGamePlanPdf(gamePlan, studentData, studentName);
+          const presResult = await buildPresentationBoth(gamePlan, studentData, studentName);
           presentationBuffer = presResult.pdfBuffer;
           pptxBuffer         = presResult.pptxBuffer;
         } catch (err) {
