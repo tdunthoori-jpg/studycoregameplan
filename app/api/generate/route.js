@@ -92,8 +92,19 @@ export async function POST(request) {
         let heartbeatPhase = 'generating';
         const heartbeat = setInterval(() => {
           elapsed += 10;
-          line(controller, { status: heartbeatPhase, message: `${heartbeatPhase === 'building' ? 'Building PDFs' : 'Claude is working'}… (${elapsed}s)` });
+          try {
+            line(controller, { status: heartbeatPhase, message: `${heartbeatPhase === 'building' ? 'Building PDFs' : 'Claude is working'}… (${elapsed}s)` });
+          } catch {
+            // Controller may already be closed — suppress to avoid unhandled errors
+            clearInterval(heartbeat);
+          }
         }, 10000);
+
+        // Helper: always clear heartbeat + send terminal line before returning
+        function bail(obj) {
+          clearInterval(heartbeat);
+          line(controller, obj);
+        }
 
         let gamePlanMsg;
         try {
@@ -105,20 +116,18 @@ export async function POST(request) {
             messages: [{ role: 'user', content: gamePlanPrompt }],
           });
         } catch (err) {
-          clearInterval(heartbeat);
           const msg = err?.message ?? 'Unknown Anthropic API error';
           const hint = err?.status === 401
             ? ' — Check that your ANTHROPIC_API_KEY is valid.'
             : err?.status === 429
             ? ' — Rate limit hit; wait a moment and try again.'
             : '';
-          line(controller, { status: 'error', error: `Claude API error: ${msg}${hint}` });
+          bail({ status: 'error', error: `Claude API error: ${msg}${hint}` });
           return;
         }
-        // Do NOT clearInterval here — heartbeat continues through the PDF build phase
 
         if (gamePlanMsg.stop_reason === 'max_tokens') {
-          line(controller, { status: 'error', error: 'Game plan response was cut off. Try reducing the number of weeks, then generate again.' });
+          bail({ status: 'error', error: 'Game plan response was cut off. Try reducing the number of weeks, then generate again.' });
           return;
         }
 
@@ -168,12 +177,12 @@ export async function POST(request) {
         try {
           gamePlan = parseJson(gamePlanMsg.content[0].text, 'Game plan');
         } catch (err) {
-          line(controller, { status: 'error', error: `Game plan parse error: ${err.message}. Try generating again.` });
+          bail({ status: 'error', error: `Game plan parse error: ${err.message}. Try generating again.` });
           return;
         }
 
         if (!gamePlan) {
-          line(controller, { status: 'error', error: 'Claude response missing game plan data.' });
+          bail({ status: 'error', error: 'Claude response missing game plan data.' });
           return;
         }
 
@@ -192,8 +201,7 @@ export async function POST(request) {
           presentationBuffer = presResult.pdfBuffer;
           pptxBuffer         = presResult.pptxBuffer;
         } catch (err) {
-          clearInterval(heartbeat);
-          line(controller, { status: 'error', error: `Document build error: ${err.message}` });
+          bail({ status: 'error', error: `Document build error: ${err.message}` });
           return;
         }
         clearInterval(heartbeat);
@@ -208,10 +216,12 @@ export async function POST(request) {
         });
 
       } catch (err) {
+        clearInterval(heartbeat);
         try {
           line(controller, { status: 'error', error: `Unexpected error: ${err?.message ?? String(err)}` });
         } catch {}
       } finally {
+        clearInterval(heartbeat); // belt-and-suspenders: safe to call after already cleared
         controller.close();
       }
     },
