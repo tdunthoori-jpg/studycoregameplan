@@ -263,7 +263,7 @@ function UploadZone({ onParsed, onError, isParsing, setIsParsing }) {
           <>
             <div style={{ fontSize: 36, marginBottom: 8 }}>📄</div>
             <div style={{ fontWeight: 700, color: STYLES.navy, fontSize: 15, marginBottom: 4 }}>
-              Drag & drop score reports here
+              Drag & drop score reports or StudyCore diagnostics here
             </div>
             <div style={{ color: '#666', fontSize: 13 }}>
               or click to browse — PDF, PNG, or JPG · multiple files OK
